@@ -111,6 +111,7 @@ export const Menu = () => {
     );
 
     const { user } = useAuth();
+    console.log("user", user)
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const functions = getFunctions(undefined, "europe-west1");

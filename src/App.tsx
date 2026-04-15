@@ -21,6 +21,8 @@ import {ProtectedRoute} from "./app/ProtectedRoute";
 import {Footer} from "./features";
 import {useAuth} from "./auth/aut.context";
 import {useEffect} from "react";
+import { db } from "./firebase/firebase";
+import {ref, set} from "firebase/database";
 
 export default function App() {
     const { user } = useAuth();
@@ -31,6 +33,34 @@ export default function App() {
         return () => {
             if (timeout) clearTimeout(timeout);
         };
+    }, []);
+
+    const izgaralar = {
+        "meze": {
+            id: 607,
+            isAvailable: true,
+            keyTitle: "meze",
+            title: "Meze",
+            type: "eat",
+            price: 100,
+            image: "https://firebasestorage.googleapis.com/v0/b/restaurantorderwebdemo.firebasestorage.app/o/meze.jpg?alt=media&token=a65931e5-1cbe-4441-b6ff-9e4d5093cfb3",
+            description: "",
+            allergens: ["4", "Aa", "C", "F", "G", "H", "I"],
+            optionsCatalog: {},
+            translations: {
+                tr: { title: "Meze", description: "" },
+                de: { title: "Vorspeise", description: "" },
+                en: { title: "Appetizer", description: "" },
+                ru: { title: "Закуска", description: "" },
+            },
+        },
+    };
+
+const newFetchData = async () => {
+    await set(ref(db, "menu/izgaralar"), izgaralar);
+};
+    useEffect(() => {
+        newFetchData()
     }, []);
 
     return (
