@@ -25,8 +25,6 @@ yarn-error.log*
 .env.*.local
 
 # Firebase
-.firebase/
-.firebaserc
 
 # Service account (ÇOK ÖNEMLİ)
 serviceAccountKey.json
@@ -38,5 +36,22 @@ serviceAccountKey.json
 # Cache
 .cache/
 .vercel
-serviceAccountKey.json
+
+# Firebase config files (ÇOK ÖNEMLİ)
 src/firebase/production.ts
+src/firebase/firebase.ts
+
+# Expo / React Native
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Test coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo
