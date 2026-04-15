@@ -1,0 +1,40 @@
+# Node modules
+node_modules/
+
+# Build outputs
+dist/
+build/
+.vite/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+
+# Env files
+.env*
+.env
+.env_pro
+.env_dev
+.env.local
+.env.*.local
+
+# Firebase
+.firebase/
+.firebaserc
+
+# Service account (ÇOK ÖNEMLİ)
+serviceAccountKey.json
+
+# IDE
+.vscode/
+.idea/
+
+# Cache
+.cache/
+.vercel
