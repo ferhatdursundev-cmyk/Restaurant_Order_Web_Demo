@@ -4,13 +4,13 @@ import { getDatabase } from "firebase/database";
 import {getFunctions} from "firebase/functions";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyC95nVCJ76YLvibA55OA86naEaK8BLquLw",
-    authDomain: "restaurantorderwebdemo.firebaseapp.com",
-    databaseURL: "https://restaurantorderwebdemo-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "restaurantorderwebdemo",
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain:  import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
     storageBucket: "restaurantorderwebdemo.firebasestorage.app",
     messagingSenderId: "783104741879",
-    appId: "1:783104741879:web:c8331bf9a6bae3d4fb5ef2",
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
     measurementId: "G-Y0X87DMYL3"
 };
 const app = initializeApp(firebaseConfig);
