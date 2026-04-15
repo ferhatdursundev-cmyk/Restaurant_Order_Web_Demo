@@ -38,3 +38,5 @@ serviceAccountKey.json
 # Cache
 .cache/
 .vercel
+serviceAccountKey.json
+src/firebase/production.ts
