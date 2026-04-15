@@ -39,7 +39,6 @@ serviceAccountKey.json
 
 # Firebase config files (ÇOK ÖNEMLİ)
 src/firebase/production.ts
-src/firebase/firebase.ts
 
 # Expo / React Native
 .expo/

@@ -1,21 +1,23 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getDatabase } from "firebase/database";
-import {getFunctions} from "firebase/functions";
+import { getDatabase, runTransaction } from "firebase/database";
+import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyC95nVCJ76YLvibA55OA86naEaK8BLquLw",
-    authDomain: "restaurantorderwebdemo.firebaseapp.com",
-    databaseURL: "https://restaurantorderwebdemo-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "restaurantorderwebdemo",
-    storageBucket: "restaurantorderwebdemo.firebasestorage.app",
-    messagingSenderId: "783104741879",
-    appId: "1:783104741879:web:c8331bf9a6bae3d4fb5ef2",
-    measurementId: "G-Y0X87DMYL3"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
+
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getDatabase(app);
 export const functions = getFunctions(app, "europe-west1");
-export { runTransaction } from "firebase/database";
+export { runTransaction };
+export default app;
