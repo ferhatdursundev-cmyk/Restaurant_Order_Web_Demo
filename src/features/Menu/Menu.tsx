@@ -150,6 +150,7 @@ export const Menu = () => {
         let cancelled = false;
 
         const run = async () => {
+            console.log("tableId:", tableId, "qrKey:", qrKey); // bunu ekle
             try {
                 const existingToken = sessionStorage.getItem(`tableToken:${tableId}`);
                 const existingExp = Number(sessionStorage.getItem(`tableTokenExp:${tableId}`) || 0);
