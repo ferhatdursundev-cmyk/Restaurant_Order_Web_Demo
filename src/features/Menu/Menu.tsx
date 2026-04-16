@@ -462,7 +462,7 @@ export const Menu = () => {
                                                 size="small"
                                                 variant="contained"
                                                 disableElevation
-                                                disabled={!item.isAvailable || !isProximityOk || isExpired}
+                                                disabled={!item.isAvailable || !isProximityOk || isExpired || !isOrder}
                                                 onClick={() => {
                                                     dispatch(addItem({
                                                         productId: String(item.id),
