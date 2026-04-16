@@ -103,7 +103,6 @@ export const Menu = () => {
             { key: "pasta", label: m.categories.pasta },
             { key: "dondurma", label: m.categories.dondurma },
             { key: "icecekler", label: m.categories.icecekler },
-            { key: "meyve_sulari", label: m.categories.meyve_sulari },
             { key: "caylar", label: m.categories.caylar },
             { key: "sicak_icecekler", label: m.categories.sicak_icecekler },
         ],
