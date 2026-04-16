@@ -50,7 +50,7 @@ export default function App() {
                 }}
             >
                 <Box sx={{ position: "sticky", top: 0, zIndex: 1200, bgcolor: "background.default" }}>
-                    <Header title="DEMO RESTORAN-KAFE-OTEL" />
+                    <Header title="DEMO RESTORAN" />
                 </Box>
 
                 <GlobalNotify />
