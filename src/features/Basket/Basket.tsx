@@ -213,6 +213,7 @@ export const Basket = () => {
                 await remove(ref(db, `liveCartByTable/${tableIdToUse}`));
                 await update(ref(db, `tableCartSignals/${tableIdToUse}`), {
                     lastSubmittedAt: Date.now(),
+                    lastResetAt: Date.now(), // Diger kullanicilari tetikler ve onlarin local sepetlerini siler.
                 });
             }
 
