@@ -14,6 +14,10 @@ const SMTP_USER = defineSecret("SMTP_USER");
 const SMTP_PASS = defineSecret("SMTP_PASS");
 const SMTP_FROM = defineSecret("SMTP_FROM");
 
+const ALLOWED_ORIGINS = [
+    "https://restaurant-order-web-demo.vercel.app",
+];
+
 type CreateUserBody = {
     email: string;
     password: string;
@@ -284,7 +288,10 @@ export const createUserWithProfile = onRequest(
 );
 
 export const mintTableSession = onCall<MintReq, Promise<MintRes>>(
-    { region: "europe-west1" },
+    {
+        region: "europe-west1",
+        cors: ALLOWED_ORIGINS,
+    },
     async (req) => {
         const data = req.data;
 
@@ -302,7 +309,6 @@ export const mintTableSession = onCall<MintReq, Promise<MintRes>>(
             throw new HttpsError("permission-denied", "Geçersiz QR anahtarı.");
         }
 
-        //Üretilen token süresinin belirlendigi kod
         const now = Date.now();
         const exp = now + 15 * 60 * 1000;
         const sessionToken = base64UrlToken(24);
@@ -317,7 +323,10 @@ export const mintTableSession = onCall<MintReq, Promise<MintRes>>(
 );
 
 export const getOrdersForTable = onCall<GetOrdersReq, Promise<GetOrdersRes>>(
-    { region: "europe-west1" },
+    {
+        region: "europe-west1",
+        cors: ALLOWED_ORIGINS,
+    },
     async (req) => {
         const data = req.data;
 
@@ -352,7 +361,10 @@ export const getOrdersForTable = onCall<GetOrdersReq, Promise<GetOrdersRes>>(
 );
 
 export const adminCreateUser = onCall(
-    { region: "europe-west1" },
+    {
+        region: "europe-west1",
+        cors: ALLOWED_ORIGINS,
+    },
     async (request) => {
         const callerUid = request.auth?.uid;
         if (!callerUid) throw new HttpsError("unauthenticated", "Giriş gerekli.");
@@ -391,7 +403,10 @@ export const adminCreateUser = onCall(
 );
 
 export const adminSetPassword = onCall(
-    { region: "europe-west1" },
+    {
+        region: "europe-west1",
+        cors: ALLOWED_ORIGINS,
+    },
     async (request) => {
         const callerUid = request.auth?.uid;
         if (!callerUid) throw new HttpsError("unauthenticated", "Giriş gerekli.");
@@ -411,7 +426,10 @@ export const adminSetPassword = onCall(
 );
 
 export const adminDeleteUser = onCall(
-    { region: "europe-west1" },
+    {
+        region: "europe-west1",
+        cors: ALLOWED_ORIGINS,
+    },
     async (request) => {
         try {
             const callerUid = request.auth?.uid;
