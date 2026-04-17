@@ -141,7 +141,7 @@ export const Menu = () => {
     const qrKey = useMemo(() => queryParams.get("k"), [queryParams]);
     const tableId = tableIdFromPath || tableIdFromQuery;
     const { status: proximityStatus, distance } = useProximityCheck();
-    const isProximityOk = user?.isAdmin;
+   // const isProximityOk = user?.isAdmin;
     console.log("distance", distance);
 
     useEffect(() => {
