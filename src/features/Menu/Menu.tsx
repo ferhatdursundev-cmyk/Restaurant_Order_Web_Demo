@@ -141,7 +141,7 @@ export const Menu = () => {
     const qrKey = useMemo(() => queryParams.get("k"), [queryParams]);
     const tableId = tableIdFromPath || tableIdFromQuery;
     const { status: proximityStatus, distance } = useProximityCheck();
-    const isProximityOk = user?.isAdmin || proximityStatus === "allowed";
+    const isProximityOk = user?.isAdmin;
     console.log("distance", distance);
 
     useEffect(() => {
@@ -462,7 +462,7 @@ export const Menu = () => {
                                                 size="small"
                                                 variant="contained"
                                                 disableElevation
-                                                disabled={!item.isAvailable || !isProximityOk || isExpired || !isOrder}
+                                                disabled={!item.isAvailable || isExpired || !isOrder}
                                                 onClick={() => {
                                                     dispatch(addItem({
                                                         productId: String(item.id),
@@ -513,7 +513,7 @@ export const Menu = () => {
                         </Box>
                         <Button
                             variant="contained"
-                            disabled={!isOrder || cartCount === 0 || !isProximityOk}
+                            disabled={!isOrder || cartCount === 0}
                             sx={{ borderRadius: 999, textTransform: "none", fontWeight: 900, px: 3, py: 1, bgcolor: "#FF7A00", boxShadow: "0 10px 30px rgba(255,122,0,0.4)", "&:hover": { bgcolor: "#ff8c1a" }, "&.Mui-disabled": { bgcolor: "rgba(255,122,0,0.35)", color: "rgba(255,255,255,0.9)", boxShadow: "none", opacity: 1, cursor: "not-allowed" } }}
                             onClick={() => cartCount !== 0 && navigate("/basket")}
                         >
