@@ -458,7 +458,7 @@ export const Basket = () => {
                     fullWidth
                     variant="contained"
                     disableElevation
-                    disabled={isExpired || !isOrder || mergedItems.length === 0 || (canChooseTable && !selectedTableId) || !isProximityOk}
+                    disabled={isExpired || !isOrder || mergedItems.length === 0 || (canChooseTable && !selectedTableId)}
                     onClick={() => setConfirmOpen(true)}
                     sx={{
                         borderRadius: 999,
