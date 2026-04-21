@@ -151,29 +151,35 @@ export function GlobalAutoPrint() {
                         );
 
                         try {
-                            const res = await fetch(
-                                "http://127.0.0.1:43125/print/receipt",
-                                {
-                                    method: "POST",
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                    },
-                                    body: JSON.stringify({
-                                        orderId,
-                                        tableName:
-                                            lockedOrder?.tableName ||
-                                            lockedOrder?.table ||
-                                            tableId,
-                                        items,
-                                        total,
-                                    }),
+                            const payload = {
+                                orderId,
+                                tableName:
+                                    lockedOrder?.tableName ||
+                                    lockedOrder?.table ||
+                                    tableId,
+                                items,
+                                total,
+                            };
+
+                            for (let i = 0; i < 2; i++) {
+                                const res = await fetch(
+                                    "http://127.0.0.1:43125/print/receipt",
+                                    {
+                                        method: "POST",
+                                        headers: {
+                                            "Content-Type": "application/json",
+                                        },
+                                        body: JSON.stringify(payload),
+                                    }
+                                );
+
+                                const json = await res.json().catch(() => null);
+
+                                if (!res.ok || !json?.ok) {
+                                    throw new Error(
+                                        `${i + 1}. çıktı yazdırılamadı: ${json?.error || "Yazdırma başarısız"}`
+                                    );
                                 }
-                            );
-
-                            const json = await res.json().catch(() => null);
-
-                            if (!res.ok || !json?.ok) {
-                                throw new Error(json?.error || "Yazdırma başarısız");
                             }
 
                             await update(orderRef, {
