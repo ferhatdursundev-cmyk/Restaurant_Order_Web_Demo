@@ -11,3 +11,4 @@ export * from "./TableOrdersDrawer";
 export * from "./PrinterSettingsDialog";
 export * from "./CallWaiterDialog";
 export * from "./GlobalTableSessionGuard";
+export * from "./Loading";
