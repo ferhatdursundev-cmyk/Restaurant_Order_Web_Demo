@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import {
     Alert,
     Box,
@@ -20,7 +20,7 @@ import { useAppDispatch, addItem, useAppSelector, show as showNotify } from "../
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { CustomSegment, useAllergenMap } from "../../utils";
-import {useProximityCheck, useTableSession} from "../../hooks";
+import { useProximityCheck, useTableSession } from "../../hooks";
 import EditIcon from "@mui/icons-material/Edit";
 import { useLanguage, getLocalizedField } from "../../i18n";
 
@@ -69,9 +69,14 @@ type MenuItem = {
 };
 
 type MenuMap = Record<string, MenuItem>;
+type AllMenuData = Partial<Record<SegKey, MenuMap>>;
 
 function formatPriceTRY(value: number) {
-    const formatted = new Intl.NumberFormat("tr-TR", { style: "decimal", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+    const formatted = new Intl.NumberFormat("tr-TR", {
+        style: "decimal",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(value);
     return `${formatted} ₺`;
 }
 
@@ -81,6 +86,7 @@ export const Menu = () => {
     const allergenMap = useAllergenMap();
     const { isExpired } = useTableSession();
     const isOrder = useAppSelector((s) => s.orderSettings.isOrder);
+
     const items = useMemo(
         () => [
             { key: "corbalar", label: m.categories.corbalar },
@@ -110,47 +116,129 @@ export const Menu = () => {
     );
 
     const { user } = useAuth();
-    console.log("user", user)
+    console.log("user", user);
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const functions = getFunctions(undefined, "europe-west1");
 
     const [priceDialogOpen, setPriceDialogOpen] = useState(false);
     const [selectedItemKey, setSelectedItemKey] = useState<string | null>(null);
+    const [selectedItemSeg, setSelectedItemSeg] = useState<SegKey | null>(null);
     const [newPrice, setNewPrice] = useState("");
     const [priceError, setPriceError] = useState("");
     const [priceUpdating, setPriceUpdating] = useState(false);
 
-    const [seg, setSeg] = useState<SegKey>("corbalar");
-    const [data, setData] = useState<MenuMap | null>(null);
-    const [loading, setLoading] = useState(true);
+    // Aktif segment — scroll ile güncellenir, tıklanınca scroll tetiklenir
+    const [activeSeg, setActiveSeg] = useState<SegKey>("corbalar");
+
+    // Tüm menü verisi tek objede
+    const [allData, setAllData] = useState<AllMenuData>({});
+    const [loadedKeys, setLoadedKeys] = useState<Set<SegKey>>(new Set());
     const [error, setError] = useState<string | null>(null);
+
     const [allergenDialogOpen, setAllergenDialogOpen] = useState(false);
     const [selectedAllergen, setSelectedAllergen] = useState<string>("");
     const cartItems = useAppSelector((s) => s.cart.items);
 
     const { tableId: tableIdFromPath } = useParams<{ tableId: string }>();
     const location = useLocation();
-
     const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
-    const tableIdFromQuery = useMemo(() => {
-        return queryParams.get("table") || queryParams.get("t") || queryParams.get("masa");
-    }, [queryParams]);
-
+    const tableIdFromQuery = useMemo(
+        () => queryParams.get("table") || queryParams.get("t") || queryParams.get("masa"),
+        [queryParams]
+    );
     const qrKey = useMemo(() => queryParams.get("k"), [queryParams]);
     const tableId = tableIdFromPath || tableIdFromQuery;
     const { status: proximityStatus, distance } = useProximityCheck();
-   // const isProximityOk = user?.isAdmin;
     console.log("distance", distance);
 
+    // Her kategori section'ı için ref map
+    const sectionRefs = useRef<Partial<Record<SegKey, HTMLDivElement | null>>>({});
+
+    // Scroll sırasında aktif segment'i güncellemek için flag
+    // (tıkla→scroll sırasında observer'ın activeSeg'i değiştirmesini önler)
+    const isScrollingToRef = useRef(false);
+
+    // ── Tüm kategorileri tek seferde Firebase'den çek ──────────────────────
+    useEffect(() => {
+        const segKeys = items.map((i) => i.key as SegKey);
+        const unsubs: (() => void)[] = [];
+
+        segKeys.forEach((key) => {
+            const r = ref(db, `menu/${key}`);
+            const unsub = onValue(
+                r,
+                (snap) => {
+                    const val = (snap.exists() ? snap.val() : null) as MenuMap | null;
+                    setAllData((prev) => ({ ...prev, [key]: val ?? {} }));
+                    setLoadedKeys((prev) => new Set(prev).add(key));
+                },
+                () => {
+                    setError("Menü okunamadı");
+                    setLoadedKeys((prev) => new Set(prev).add(key));
+                }
+            );
+            unsubs.push(unsub);
+        });
+
+        return () => unsubs.forEach((u) => u());
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const isFullyLoaded = loadedKeys.size === items.length;
+
+    // ── IntersectionObserver — görünen section → activeSeg ─────────────────
+    useEffect(() => {
+        if (!isFullyLoaded) return;
+
+        const observers: IntersectionObserver[] = [];
+
+        items.forEach(({ key }) => {
+            const el = sectionRefs.current[key as SegKey];
+            if (!el) return;
+
+            const obs = new IntersectionObserver(
+                ([entry]) => {
+                    if (entry.isIntersecting && !isScrollingToRef.current) {
+                        setActiveSeg(key as SegKey);
+                    }
+                },
+                {
+                    // Viewport'un ortasında görünen section aktif sayılır
+                    rootMargin: "-40% 0px -40% 0px",
+                    threshold: 0,
+                }
+            );
+            obs.observe(el);
+            observers.push(obs);
+        });
+
+        return () => observers.forEach((o) => o.disconnect());
+    }, [isFullyLoaded, items]);
+
+    // ── Segment tıklanınca ilgili section'a scroll ──────────────────────────
+    const handleSegmentClick = useCallback((key: string) => {
+        const el = sectionRefs.current[key as SegKey];
+        if (!el) return;
+
+        setActiveSeg(key as SegKey);
+        isScrollingToRef.current = true;
+
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+
+        // Smooth scroll bitince flag'i kaldır (~800ms yeterli)
+        setTimeout(() => {
+            isScrollingToRef.current = false;
+        }, 900);
+    }, []);
+
+    // ── QR / mintTableSession ───────────────────────────────────────────────
     useEffect(() => {
         if (!tableId || !qrKey) return;
-
         let cancelled = false;
 
         const run = async () => {
-            console.log("tableId:", tableId, "qrKey:", qrKey); // bunu ekle
+            console.log("tableId:", tableId, "qrKey:", qrKey);
             try {
                 const existingToken = sessionStorage.getItem(`tableToken:${tableId}`);
                 const existingExp = Number(sessionStorage.getItem(`tableTokenExp:${tableId}`) || 0);
@@ -160,7 +248,6 @@ export const Menu = () => {
                     navigate(`/t/${tableId}`, { replace: true });
                     return;
                 }
-
                 if (existingToken && existingExp <= Date.now()) {
                     navigate(`/t/${tableId}`, { replace: true });
                     return;
@@ -180,21 +267,19 @@ export const Menu = () => {
                 localStorage.setItem("activeTableId", tableId);
                 localStorage.setItem("activeTableId_ts", String(Date.now()));
                 sessionStorage.removeItem(`tableMinting:${tableId}`);
-
-                // Yeni QR okutulunca expired flag'i temizle
                 sessionStorage.removeItem("tableSessionExpired");
 
                 window.dispatchEvent(new Event("tableSessionReady"));
                 navigate(`/t/${tableId}`, { replace: true });
             } catch (err) {
-                if (tableId) {
-                    sessionStorage.removeItem(`tableMinting:${tableId}`);
-                }
+                if (tableId) sessionStorage.removeItem(`tableMinting:${tableId}`);
                 console.error("mintTableSession error:", err);
-                dispatch(showNotify({
-                    message: "QR oturumu oluşturulamadı. Lütfen bu sayfayi kapatin ve QR kodu tekrar okutun.",
-                    severity: "error",
-                }));
+                dispatch(
+                    showNotify({
+                        message: "QR oturumu oluşturulamadı. Lütfen bu sayfayi kapatin ve QR kodu tekrar okutun.",
+                        severity: "error",
+                    })
+                );
             }
         };
 
@@ -208,44 +293,25 @@ export const Menu = () => {
         0
     );
 
-    useEffect(() => {
-        const r = ref(db, `menu/${seg}`);
-        const unsub = onValue(
-            r,
-            (snap) => {
-                const val = (snap.exists() ? snap.val() : null) as MenuMap | null;
-                setData(val);
-                setLoading(false);
-            },
-            () => {
-                setError("Menü okunamadı");
-                setLoading(false);
-            }
-        );
-        return () => unsub();
-    }, [seg]);
-
-    useEffect(() => {
-        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    }, [seg]);
-
-    const list = useMemo(() => {
-        const arr = Object.entries(data ?? {})
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    const getSortedList = (segKey: SegKey) => {
+        const data = allData[segKey] ?? {};
+        return Object.entries(data)
             .filter(([, v]) => v && typeof v === "object")
-            .map(([key, item]) => ({ key, ...(item as MenuItem) }));
+            .map(([key, item]) => ({ key, ...(item as MenuItem) }))
+            .sort((a, b) => (a.title ?? "").localeCompare(b.title ?? "", "de"));
+    };
 
-        return arr.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? "", "de"));
-    }, [data]);
-
-    const toggleAvailability = async (itemKey: string, next: boolean) => {
+    const toggleAvailability = async (segKey: SegKey, itemKey: string, next: boolean) => {
         try {
-            await update(ref(db, `menu/${seg}/${itemKey}`), { isAvailable: next });
+            await update(ref(db, `menu/${segKey}/${itemKey}`), { isAvailable: next });
         } catch {
             setError("Yetki yok: Menü güncellenemedi (rules reddetti).");
         }
     };
 
-    const handleOpenPriceDialog = (itemKey: string, currentPrice: number) => {
+    const handleOpenPriceDialog = (segKey: SegKey, itemKey: string, currentPrice: number) => {
+        setSelectedItemSeg(segKey);
         setSelectedItemKey(itemKey);
         setNewPrice(String(currentPrice));
         setPriceError("");
@@ -255,6 +321,7 @@ export const Menu = () => {
     const handleClosePriceDialog = () => {
         setPriceDialogOpen(false);
         setSelectedItemKey(null);
+        setSelectedItemSeg(null);
         setNewPrice("");
         setPriceError("");
     };
@@ -265,10 +332,10 @@ export const Menu = () => {
             setPriceError("Geçerli bir fiyat girin.");
             return;
         }
-        if (!selectedItemKey) return;
+        if (!selectedItemKey || !selectedItemSeg) return;
         setPriceUpdating(true);
         try {
-            await update(ref(db, `menu/${seg}/${selectedItemKey}`), { price: parsed });
+            await update(ref(db, `menu/${selectedItemSeg}/${selectedItemKey}`), { price: parsed });
             dispatch(showNotify({ message: "Fiyat güncellendi.", severity: "success" }));
             handleClosePriceDialog();
         } catch {
@@ -283,10 +350,10 @@ export const Menu = () => {
         setAllergenDialogOpen(true);
     };
 
-
-
+    // ── Render ───────────────────────────────────────────────────────────────
     return (
         <Box sx={{ pb: 4 }}>
+            {/* Sticky segment bar */}
             <Box
                 sx={{
                     position: "sticky",
@@ -305,13 +372,16 @@ export const Menu = () => {
             >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <CustomSegment value={seg} onChange={(k) => setSeg(k as SegKey)} items={items} />
+                        <CustomSegment
+                            value={activeSeg}
+                            onChange={handleSegmentClick}
+                            items={items}
+                        />
                     </Box>
                 </Box>
             </Box>
 
             <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 2, md: 3 }, pt: 2 }}>
-
                 {!user?.isAdmin && proximityStatus === "checking" && (
                     <Alert severity="info" sx={{ mb: 2 }}>Konum kontrol ediliyor...</Alert>
                 )}
@@ -326,25 +396,23 @@ export const Menu = () => {
                     </Alert>
                 )}
                 {error && <Alert severity="error">Hata: {error}</Alert>}
-                {!error && !loading && list.length === 0 && (
-                    <Alert severity="info">{m.noItems}</Alert>
-                )}
 
-                <Box
-                    sx={{
-                        mt: 2,
-                        display: "grid",
-                        gap: 2,
-                        gridTemplateColumns: {
-                            xs: "1fr",
-                            sm: "repeat(2, minmax(0, 1fr))",
-                            lg: "repeat(3, minmax(0, 1fr))",
-                            xl: "repeat(4, minmax(0, 1fr))",
-                        },
-                    }}
-                >
-                    {loading
-                        ? Array.from({ length: 8 }).map((_, i) => (
+                {/* İlk yükleme skeleton'ı — henüz hiç kategori gelmedi */}
+                {!isFullyLoaded && loadedKeys.size === 0 && (
+                    <Box
+                        sx={{
+                            mt: 2,
+                            display: "grid",
+                            gap: 2,
+                            gridTemplateColumns: {
+                                xs: "1fr",
+                                sm: "repeat(2, minmax(0, 1fr))",
+                                lg: "repeat(3, minmax(0, 1fr))",
+                                xl: "repeat(4, minmax(0, 1fr))",
+                            },
+                        }}
+                    >
+                        {Array.from({ length: 8 }).map((_, i) => (
                             <Card key={i} sx={{ borderRadius: 4, overflow: "hidden" }}>
                                 <Skeleton variant="rectangular" height={190} />
                                 <CardContent>
@@ -353,157 +421,232 @@ export const Menu = () => {
                                     <Skeleton width="90%" />
                                 </CardContent>
                             </Card>
-                        ))
-                        : list.map((item) => {
-                            // ── localTitle: translations'tan oku, yoksa item.title'a dön ──
-                            const localTitle = getLocalizedField(item, "title", lang) || item.title;
+                        ))}
+                    </Box>
+                )}
 
-                            return (
-                                <Card
-                                    key={item.key}
+                {/* Tüm kategoriler tek sayfada */}
+                {items.map(({ key, label }) => {
+                    const segKey = key as SegKey;
+                    const loaded = loadedKeys.has(segKey);
+                    const list = loaded ? getSortedList(segKey) : [];
+
+                    return (
+                        <Box
+                            key={segKey}
+                            ref={(el: HTMLDivElement | null) => { sectionRefs.current[segKey] = el; }}
+                            sx={{ mt: 4, scrollMarginTop: "110px" }}
+                        >
+                            {/* Kategori başlığı */}
+                            <Typography
+                                variant="h6"
+                                sx={{
+                                    fontWeight: 900,
+                                    fontSize: { xs: 18, md: 20 },
+                                    mb: 1.5,
+                                    pb: 0.75,
+                                    borderBottom: "2px solid",
+                                    borderColor: "divider",
+                                }}
+                            >
+                                {label}
+                            </Typography>
+
+                            {/* Skeleton — bu kategori henüz yüklenmediyse */}
+                            {!loaded && (
+                                <Box
                                     sx={{
-                                        borderRadius: 4,
-                                        overflow: "hidden",
-                                        position: "relative",
-                                        border: "1px solid",
-                                        borderColor: "divider",
-                                        background: "linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02))",
-                                        transition: "transform 140ms ease, box-shadow 140ms ease",
-                                        "&:hover": {
-                                            transform: "translateY(-3px)",
-                                            boxShadow: "0 18px 60px rgba(0,0,0,0.12)",
+                                        display: "grid",
+                                        gap: 2,
+                                        gridTemplateColumns: {
+                                            xs: "1fr",
+                                            sm: "repeat(2, minmax(0, 1fr))",
+                                            lg: "repeat(3, minmax(0, 1fr))",
+                                            xl: "repeat(4, minmax(0, 1fr))",
                                         },
                                     }}
                                 >
-                                    <Box sx={{ position: "relative", height: 200, bgcolor: "action.hover" }}>
-                                        <Box
-                                            component="img"
-                                            src={item.image || ""}
-                                            alt={localTitle}
-                                            loading="lazy"
-                                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = ""; }}
-                                            sx={{
-                                                width: "100%",
-                                                height: "100%",
-                                                objectFit: "cover",
-                                                display: item.image ? "block" : "none",
-                                            }}
-                                        />
+                                    {Array.from({ length: 4 }).map((_, i) => (
+                                        <Card key={i} sx={{ borderRadius: 4, overflow: "hidden" }}>
+                                            <Skeleton variant="rectangular" height={190} />
+                                            <CardContent>
+                                                <Skeleton width="70%" />
+                                                <Skeleton width="40%" />
+                                                <Skeleton width="90%" />
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </Box>
+                            )}
 
-                                        {!item.image && (
-                                            <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "text.secondary", fontWeight: 800, fontSize: 13 }}>
-                                                {m.noImage}
-                                            </Box>
-                                        )}
+                            {/* Boş kategori */}
+                            {loaded && list.length === 0 && (
+                                <Alert severity="info">{m.noItems}</Alert>
+                            )}
 
-                                        {!item.isAvailable && (
-                                            <Box sx={{ position: "absolute", left: 12, top: 12, px: 1.05, py: 0.55, borderRadius: 999, bgcolor: "rgba(229, 57, 53, 0.92)", color: "white", fontWeight: 900, fontSize: 12 }}>
-                                                {m.outOfStock}
-                                            </Box>
-                                        )}
+                            {/* Ürün grid */}
+                            {loaded && list.length > 0 && (
+                                <Box
+                                    sx={{
+                                        display: "grid",
+                                        gap: 2,
+                                        gridTemplateColumns: {
+                                            xs: "1fr",
+                                            sm: "repeat(2, minmax(0, 1fr))",
+                                            lg: "repeat(3, minmax(0, 1fr))",
+                                            xl: "repeat(4, minmax(0, 1fr))",
+                                        },
+                                    }}
+                                >
+                                    {list.map((item) => {
+                                        const localTitle = getLocalizedField(item, "title", lang) || item.title;
 
-                                        <Box sx={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.00) 40%, rgba(0,0,0,0.22) 100%)", pointerEvents: "none" }} />
-                                    </Box>
-
-                                    <CardContent sx={{ display: "grid", gap: 1.1 }}>
-                                        <Box sx={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 1 }}>
-                                            <Typography sx={{ fontWeight: 950, lineHeight: 1.15, fontSize: 16 }}>
-                                                {localTitle}
-                                            </Typography>
-                                            <Box sx={{ px: 1.2, py: 0.6, borderRadius: 999, bgcolor: "rgba(17, 24, 39, 0.80)", color: "white", fontWeight: 900, fontSize: 15, letterSpacing: 0.2, backdropFilter: "blur(10px)", whiteSpace: "nowrap" }}>
-                                                {formatPriceTRY(item.price)}
-                                            </Box>
-                                        </Box>
-
-                                        {user?.isAdmin && (
-                                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                <IconButton size="small" onClick={() => handleOpenPriceDialog(item.key, item.price)} sx={{ color: "#FF7A00" }}>
-                                                    <EditIcon fontSize="small" />
-                                                </IconButton>
-                                                <PremiumSwitch
-                                                    size="small"
-                                                    checked={item.isAvailable}
-                                                    onChange={(e) => {
-                                                        const checked = e.target.checked;
-                                                        toggleAvailability(item.key, checked);
-                                                        dispatch(showNotify({
-                                                            message: `${localTitle} ${checked ? "mevcut" : "tükendi"}`,
-                                                            severity: checked ? "success" : "error",
-                                                        }));
-                                                    }}
-                                                />
-                                            </Box>
-                                        )}
-
-                                        <Box sx={{ display: "flex", flexDirection: "column", mt: 0.5, gap: 1 }}>
-                                            {/* Alerjenler */}
-                                            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ alignItems: "center" }}>
-                                                <span>{m.allergyInfo}:</span>
-                                                {item.allergens?.length ? (
-                                                    item.allergens.map((a) => (
-                                                        <Chip
-                                                            key={a}
-                                                            size="small"
-                                                            label={allergenMap[a] ?? a}
-                                                            variant="outlined"
-                                                            clickable
-                                                            onClick={() => handleAllergenClick(a)}
-                                                            sx={{ borderRadius: 999, fontWeight: 600, fontSize: 12, maxWidth: "100%", cursor: "pointer" }}
-                                                        />
-                                                    ))
-                                                ) : (
-                                                    <Chip size="small" label={m.noAllergen} variant="outlined" sx={{ borderRadius: 999, opacity: 0.6 }} />
-                                                )}
-                                            </Stack>
-
-                                            {/* Sepete ekle butonu — tam genişlik */}
-                                            <Button
-                                                fullWidth
-                                                size="small"
-                                                variant="contained"
-                                                disableElevation
-                                                disabled={!item.isAvailable || isExpired || !isOrder}
-                                                onClick={() => {
-                                                    dispatch(addItem({
-                                                        productId: String(item.id),
-                                                        title: item.title,
-                                                        unitPrice: item.price,
-                                                        image: item.image ?? "",
-                                                    }));
-                                                    dispatch(showNotify({
-                                                        message: m.addedToCart(localTitle),
-                                                        severity: "success",
-                                                    }));
-                                                }}
+                                        return (
+                                            <Card
+                                                key={item.key}
                                                 sx={{
-                                                    borderRadius: 999,
-                                                    textTransform: "none",
-                                                    fontWeight: 900,
-                                                    py: 0.85,
-                                                    lineHeight: 1,
-                                                    bgcolor: "rgba(17, 24, 39, 0.92)",
-                                                    color: "white",
-                                                    boxShadow: "0 10px 30px rgba(0,0,0,0.20)",
-                                                    backdropFilter: "blur(10px)",
-                                                    border: "1px solid rgba(255,255,255,0.18)",
-                                                    "&:hover": { bgcolor: "rgba(17, 24, 39, 1)", boxShadow: "0 14px 40px rgba(0,0,0,0.28)", transform: "translateY(-1px)" },
-                                                    "&:active": { transform: "translateY(0px)", boxShadow: "0 10px 26px rgba(0,0,0,0.22)" },
-                                                    "&.Mui-disabled": { bgcolor: "rgba(17, 24, 39, 0.25)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.10)" },
+                                                    borderRadius: 4,
+                                                    overflow: "hidden",
+                                                    position: "relative",
+                                                    border: "1px solid",
+                                                    borderColor: "divider",
+                                                    background: "linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02))",
+                                                    transition: "transform 140ms ease, box-shadow 140ms ease",
+                                                    "&:hover": {
+                                                        transform: "translateY(-3px)",
+                                                        boxShadow: "0 18px 60px rgba(0,0,0,0.12)",
+                                                    },
                                                 }}
                                             >
-                                                <Box component="span" sx={{ display: "inline-grid", placeItems: "center", width: 22, height: 22, mr: 0.9, borderRadius: 999, bgcolor: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.18)", fontSize: 16, fontWeight: 900 }}>
-                                                    +
+                                                <Box sx={{ position: "relative", height: 200, bgcolor: "action.hover" }}>
+                                                    <Box
+                                                        component="img"
+                                                        src={item.image || ""}
+                                                        alt={localTitle}
+                                                        loading="lazy"
+                                                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = ""; }}
+                                                        sx={{
+                                                            width: "100%",
+                                                            height: "100%",
+                                                            objectFit: "cover",
+                                                            display: item.image ? "block" : "none",
+                                                        }}
+                                                    />
+                                                    {!item.image && (
+                                                        <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "text.secondary", fontWeight: 800, fontSize: 13 }}>
+                                                            {m.noImage}
+                                                        </Box>
+                                                    )}
+                                                    {!item.isAvailable && (
+                                                        <Box sx={{ position: "absolute", left: 12, top: 12, px: 1.05, py: 0.55, borderRadius: 999, bgcolor: "rgba(229, 57, 53, 0.92)", color: "white", fontWeight: 900, fontSize: 12 }}>
+                                                            {m.outOfStock}
+                                                        </Box>
+                                                    )}
+                                                    <Box sx={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.00) 40%, rgba(0,0,0,0.22) 100%)", pointerEvents: "none" }} />
                                                 </Box>
-                                                {m.addToCart}
-                                            </Button>
-                                        </Box>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })}
-                </Box>
+
+                                                <CardContent sx={{ display: "grid", gap: 1.1 }}>
+                                                    <Box sx={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 1 }}>
+                                                        <Typography sx={{ fontWeight: 950, lineHeight: 1.15, fontSize: 16 }}>
+                                                            {localTitle}
+                                                        </Typography>
+                                                        <Box sx={{ px: 1.2, py: 0.6, borderRadius: 999, bgcolor: "rgba(17, 24, 39, 0.80)", color: "white", fontWeight: 900, fontSize: 15, letterSpacing: 0.2, backdropFilter: "blur(10px)", whiteSpace: "nowrap" }}>
+                                                            {formatPriceTRY(item.price)}
+                                                        </Box>
+                                                    </Box>
+
+                                                    {user?.isAdmin && (
+                                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                            <IconButton size="small" onClick={() => handleOpenPriceDialog(segKey, item.key, item.price)} sx={{ color: "#FF7A00" }}>
+                                                                <EditIcon fontSize="small" />
+                                                            </IconButton>
+                                                            <PremiumSwitch
+                                                                size="small"
+                                                                checked={item.isAvailable}
+                                                                onChange={(e) => {
+                                                                    const checked = e.target.checked;
+                                                                    toggleAvailability(segKey, item.key, checked);
+                                                                    dispatch(showNotify({
+                                                                        message: `${localTitle} ${checked ? "mevcut" : "tükendi"}`,
+                                                                        severity: checked ? "success" : "error",
+                                                                    }));
+                                                                }}
+                                                            />
+                                                        </Box>
+                                                    )}
+
+                                                    <Box sx={{ display: "flex", flexDirection: "column", mt: 0.5, gap: 1 }}>
+                                                        <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ alignItems: "center" }}>
+                                                            <span>{m.allergyInfo}:</span>
+                                                            {item.allergens?.length ? (
+                                                                item.allergens.map((a) => (
+                                                                    <Chip
+                                                                        key={a}
+                                                                        size="small"
+                                                                        label={allergenMap[a] ?? a}
+                                                                        variant="outlined"
+                                                                        clickable
+                                                                        onClick={() => handleAllergenClick(a)}
+                                                                        sx={{ borderRadius: 999, fontWeight: 600, fontSize: 12, maxWidth: "100%", cursor: "pointer" }}
+                                                                    />
+                                                                ))
+                                                            ) : (
+                                                                <Chip size="small" label={m.noAllergen} variant="outlined" sx={{ borderRadius: 999, opacity: 0.6 }} />
+                                                            )}
+                                                        </Stack>
+
+                                                        <Button
+                                                            fullWidth
+                                                            size="small"
+                                                            variant="contained"
+                                                            disableElevation
+                                                            disabled={!item.isAvailable || isExpired || !isOrder}
+                                                            onClick={() => {
+                                                                dispatch(addItem({
+                                                                    productId: String(item.id),
+                                                                    title: item.title,
+                                                                    unitPrice: item.price,
+                                                                    image: item.image ?? "",
+                                                                }));
+                                                                dispatch(showNotify({
+                                                                    message: m.addedToCart(localTitle),
+                                                                    severity: "success",
+                                                                }));
+                                                            }}
+                                                            sx={{
+                                                                borderRadius: 999,
+                                                                textTransform: "none",
+                                                                fontWeight: 900,
+                                                                py: 0.85,
+                                                                lineHeight: 1,
+                                                                bgcolor: "rgba(17, 24, 39, 0.92)",
+                                                                color: "white",
+                                                                boxShadow: "0 10px 30px rgba(0,0,0,0.20)",
+                                                                backdropFilter: "blur(10px)",
+                                                                border: "1px solid rgba(255,255,255,0.18)",
+                                                                "&:hover": { bgcolor: "rgba(17, 24, 39, 1)", boxShadow: "0 14px 40px rgba(0,0,0,0.28)", transform: "translateY(-1px)" },
+                                                                "&:active": { transform: "translateY(0px)", boxShadow: "0 10px 26px rgba(0,0,0,0.22)" },
+                                                                "&.Mui-disabled": { bgcolor: "rgba(17, 24, 39, 0.25)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.10)" },
+                                                            }}
+                                                        >
+                                                            <Box component="span" sx={{ display: "inline-grid", placeItems: "center", width: 22, height: 22, mr: 0.9, borderRadius: 999, bgcolor: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.18)", fontSize: 16, fontWeight: 900 }}>
+                                                                +
+                                                            </Box>
+                                                            {m.addToCart}
+                                                        </Button>
+                                                    </Box>
+                                                </CardContent>
+                                            </Card>
+                                        );
+                                    })}
+                                </Box>
+                            )}
+                        </Box>
+                    );
+                })}
             </Box>
 
+            {/* Sepet floating bar */}
             {cartCount >= 0 && (
                 <Box sx={{ position: "fixed", bottom: 16, left: 0, right: 0, zIndex: 2000, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
                     <Box sx={{ pointerEvents: "auto", width: "100%", maxWidth: 720, mx: 2, borderRadius: 999, px: 2, py: 0.1, display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: "rgba(17,24,39,0.92)", backdropFilter: "blur(18px)", color: "white", boxShadow: "0 18px 50px rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.12)" }}>
@@ -523,6 +666,7 @@ export const Menu = () => {
                 </Box>
             )}
 
+            {/* Fiyat güncelle dialog */}
             <ConfirmDialog
                 open={priceDialogOpen}
                 title="Fiyatı Güncelle"
@@ -549,6 +693,7 @@ export const Menu = () => {
                 />
             </ConfirmDialog>
 
+            {/* Alerjen bilgi dialog */}
             <ConfirmDialog
                 open={allergenDialogOpen}
                 title={`Alerji Bilgisi: ${allergenMap[selectedAllergen] ?? selectedAllergen}`}
