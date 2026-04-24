@@ -15,7 +15,7 @@ import {
 import { db } from "../../firebase/firebase";
 import { ref, onValue, update } from "firebase/database";
 import { useAuth } from "../../auth/aut.context";
-import { ConfirmDialog, PremiumSwitch, Loading } from "../../component";
+import { ConfirmDialog, PremiumSwitch } from "../../component";
 import { useAppDispatch, addItem, useAppSelector, show as showNotify } from "../../store";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -26,10 +26,28 @@ import { useLanguage, getLocalizedField } from "../../i18n";
 
 type SegKey =
     | "corbalar"
+    | "baslangiclar"
+    | "izgaralar"
+    | "balik"
     | "lahmacun"
     | "pide"
+    | "salatalar"
+    | "kahvalti"
+    | "hamburger"
+    | "makarna"
     | "tatlilar"
-    | "icecekler";
+    | "sutlu_tatlilar"
+    | "serbetli_tatlilar"
+    | "pasta"
+    | "dondurma"
+    | "icecekler"
+    | "meyve_sulari"
+    | "caylar"
+    | "sicak_icecekler"
+    | "vegan"
+    | "vejetaryen"
+    | "diyet"
+    | "alkollu_icecekler";
 
 type ItemTranslations = {
     title?: string;
@@ -53,11 +71,6 @@ type MenuItem = {
 type MenuMap = Record<string, MenuItem>;
 type AllMenuData = Partial<Record<SegKey, MenuMap>>;
 
-const INITIAL_LOAD_COUNT = 3;
-// İlk yüklemede skeleton göstermek için bekleme süresi (ms)
-// Bu süreden uzun sürerse Loading spinner devreye girer
-const LOADING_DELAY_MS = 600;
-
 function formatPriceTRY(value: number) {
     const formatted = new Intl.NumberFormat("tr-TR", {
         style: "decimal",
@@ -77,10 +90,27 @@ export const Menu = () => {
     const items = useMemo(
         () => [
             { key: "corbalar", label: m.categories.corbalar },
+            { key: "baslangiclar", label: m.categories.baslangiclar },
+            { key: "izgaralar", label: m.categories.izgaralar },
+            { key: "balik", label: m.categories.balik },
             { key: "lahmacun", label: m.categories.lahmacun },
             { key: "pide", label: m.categories.pide },
+            { key: "vegan", label: m.categories.vegan },
+            { key: "vejetaryen", label: m.categories.vejetaryen },
+            { key: "diyet", label: m.categories.diyet },
+            { key: "alkollu_icecekler", label: m.categories.alkollu_icecekler },
+            { key: "salatalar", label: m.categories.salatalar },
+            { key: "kahvalti", label: m.categories.kahvalti },
+            { key: "hamburger", label: m.categories.hamburger },
+            { key: "makarna", label: m.categories.makarna },
             { key: "tatlilar", label: m.categories.tatlilar },
+            { key: "sutlu_tatlilar", label: m.categories.sutlu_tatlilar },
+            { key: "serbetli_tatlilar", label: m.categories.serbetli_tatlilar },
+            { key: "pasta", label: m.categories.pasta },
+            { key: "dondurma", label: m.categories.dondurma },
             { key: "icecekler", label: m.categories.icecekler },
+            { key: "caylar", label: m.categories.caylar },
+            { key: "sicak_icecekler", label: m.categories.sicak_icecekler },
         ],
         [m]
     );
@@ -98,19 +128,13 @@ export const Menu = () => {
     const [priceError, setPriceError] = useState("");
     const [priceUpdating, setPriceUpdating] = useState(false);
 
+    // Aktif segment — scroll ile güncellenir, tıklanınca scroll tetiklenir
     const [activeSeg, setActiveSeg] = useState<SegKey>("corbalar");
 
+    // Tüm menü verisi tek objede
     const [allData, setAllData] = useState<AllMenuData>({});
     const [loadedKeys, setLoadedKeys] = useState<Set<SegKey>>(new Set());
     const [error, setError] = useState<string | null>(null);
-
-    const [visibleCount, setVisibleCount] = useState(INITIAL_LOAD_COUNT);
-
-    // İlk yükleme gecikmesi — LOADING_DELAY_MS sonra hâlâ veri gelmediyse
-    // tam ekran Loading göster
-    const [showInitialLoading, setShowInitialLoading] = useState(false);
-    // Yeni kategori yüklenirken (lazy load) alt kısımda Loading göster
-    const [pendingKeys, setPendingKeys] = useState<Set<SegKey>>(new Set());
 
     const [allergenDialogOpen, setAllergenDialogOpen] = useState(false);
     const [selectedAllergen, setSelectedAllergen] = useState<string>("");
@@ -129,38 +153,19 @@ export const Menu = () => {
     const { status: proximityStatus, distance } = useProximityCheck();
     console.log("distance", distance);
 
+    // Her kategori section'ı için ref map
     const sectionRefs = useRef<Partial<Record<SegKey, HTMLDivElement | null>>>({});
+
+    // Scroll sırasında aktif segment'i güncellemek için flag
+    // (tıkla→scroll sırasında observer'ın activeSeg'i değiştirmesini önler)
     const isScrollingToRef = useRef(false);
 
-    const visibleItems = useMemo(
-        () => items.slice(0, visibleCount),
-        [items, visibleCount]
-    );
-
-    // İlk yükleme gecikme timer'ı
+    // ── Tüm kategorileri tek seferde Firebase'den çek ──────────────────────
     useEffect(() => {
-        const timer = setTimeout(() => {
-            if (loadedKeys.size === 0) setShowInitialLoading(true);
-        }, LOADING_DELAY_MS);
-        return () => clearTimeout(timer);
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // İlk veri gelince Loading'i kapat
-    useEffect(() => {
-        if (loadedKeys.size > 0) setShowInitialLoading(false);
-    }, [loadedKeys.size]);
-
-    // ── Firebase: visibleCount değişince yeni kategoriyi çek ──────────────
-    useEffect(() => {
-        const keysToLoad = items.slice(0, visibleCount).map((i) => i.key as SegKey);
+        const segKeys = items.map((i) => i.key as SegKey);
         const unsubs: (() => void)[] = [];
 
-        keysToLoad.forEach((key) => {
-            if (loadedKeys.has(key)) return;
-
-            // Bu key için pending durumunu işaretle
-            setPendingKeys((prev) => new Set(prev).add(key));
-
+        segKeys.forEach((key) => {
             const r = ref(db, `menu/${key}`);
             const unsub = onValue(
                 r,
@@ -168,79 +173,66 @@ export const Menu = () => {
                     const val = (snap.exists() ? snap.val() : null) as MenuMap | null;
                     setAllData((prev) => ({ ...prev, [key]: val ?? {} }));
                     setLoadedKeys((prev) => new Set(prev).add(key));
-                    setPendingKeys((prev) => {
-                        const next = new Set(prev);
-                        next.delete(key);
-                        return next;
-                    });
                 },
                 () => {
                     setError("Menü okunamadı");
                     setLoadedKeys((prev) => new Set(prev).add(key));
-                    setPendingKeys((prev) => {
-                        const next = new Set(prev);
-                        next.delete(key);
-                        return next;
-                    });
                 }
             );
             unsubs.push(unsub);
         });
 
         return () => unsubs.forEach((u) => u());
-    }, [visibleCount]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── IntersectionObserver ──────────────────────────────────────────────
+    const isFullyLoaded = loadedKeys.size === items.length;
+
+    // ── IntersectionObserver — görünen section → activeSeg ─────────────────
     useEffect(() => {
+        if (!isFullyLoaded) return;
+
         const observers: IntersectionObserver[] = [];
 
-        visibleItems.forEach(({ key }, index) => {
+        items.forEach(({ key }) => {
             const el = sectionRefs.current[key as SegKey];
             if (!el) return;
 
             const obs = new IntersectionObserver(
                 ([entry]) => {
-                    if (!entry.isIntersecting) return;
-
-                    if (!isScrollingToRef.current) {
+                    if (entry.isIntersecting && !isScrollingToRef.current) {
                         setActiveSeg(key as SegKey);
                     }
-
-                    const isSecondToLast = index === visibleItems.length - 2;
-                    const hasMore = visibleCount < items.length;
-                    if (isSecondToLast && hasMore) {
-                        setVisibleCount((prev) => Math.min(prev + 1, items.length));
-                    }
                 },
-                { rootMargin: "-40% 0px -40% 0px", threshold: 0 }
+                {
+                    // Viewport'un ortasında görünen section aktif sayılır
+                    rootMargin: "-40% 0px -40% 0px",
+                    threshold: 0,
+                }
             );
             obs.observe(el);
             observers.push(obs);
         });
 
         return () => observers.forEach((o) => o.disconnect());
-    }, [visibleItems, visibleCount, items.length]);
+    }, [isFullyLoaded, items]);
 
-    // ── Segment tıklanınca scroll ─────────────────────────────────────────
+    // ── Segment tıklanınca ilgili section'a scroll ──────────────────────────
     const handleSegmentClick = useCallback((key: string) => {
-        const segKey = key as SegKey;
-        const targetIndex = items.findIndex((i) => i.key === key);
+        const el = sectionRefs.current[key as SegKey];
+        if (!el) return;
 
-        if (targetIndex >= visibleCount) {
-            setVisibleCount(targetIndex + 1);
-            setTimeout(() => {
-                sectionRefs.current[segKey]?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }, 150);
-        } else {
-            sectionRefs.current[segKey]?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-
-        setActiveSeg(segKey);
+        setActiveSeg(key as SegKey);
         isScrollingToRef.current = true;
-        setTimeout(() => { isScrollingToRef.current = false; }, 900);
-    }, [items, visibleCount]);
 
-    // ── QR / mintTableSession ─────────────────────────────────────────────
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+
+        // Smooth scroll bitince flag'i kaldır (~800ms yeterli)
+        setTimeout(() => {
+            isScrollingToRef.current = false;
+        }, 900);
+    }, []);
+
+    // ── QR / mintTableSession ───────────────────────────────────────────────
     useEffect(() => {
         if (!tableId || !qrKey) return;
         let cancelled = false;
@@ -301,7 +293,7 @@ export const Menu = () => {
         0
     );
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // ── Helpers ─────────────────────────────────────────────────────────────
     const getSortedList = (segKey: SegKey) => {
         const data = allData[segKey] ?? {};
         return Object.entries(data)
@@ -358,12 +350,9 @@ export const Menu = () => {
         setAllergenDialogOpen(true);
     };
 
-    // ── Render ───────────────────────────────────────────────────────────
+    // ── Render ───────────────────────────────────────────────────────────────
     return (
         <Box sx={{ pb: 4 }}>
-            {/* İlk yükleme gecikmesi — tam ekran Loading */}
-            {showInitialLoading && <Loading fullScreen message="Menü yükleniyor..." />}
-
             {/* Sticky segment bar */}
             <Box
                 sx={{
@@ -408,8 +397,8 @@ export const Menu = () => {
                 )}
                 {error && <Alert severity="error">Hata: {error}</Alert>}
 
-                {/* İlk yükleme skeleton'ı (gecikme yoksa göster, Loading devreye girmeden önce) */}
-                {loadedKeys.size === 0 && !showInitialLoading && (
+                {/* İlk yükleme skeleton'ı — henüz hiç kategori gelmedi */}
+                {!isFullyLoaded && loadedKeys.size === 0 && (
                     <Box
                         sx={{
                             mt: 2,
@@ -436,11 +425,10 @@ export const Menu = () => {
                     </Box>
                 )}
 
-                {/* Render edilen kategoriler */}
-                {visibleItems.map(({ key, label }) => {
+                {/* Tüm kategoriler tek sayfada */}
+                {items.map(({ key, label }) => {
                     const segKey = key as SegKey;
                     const loaded = loadedKeys.has(segKey);
-                    const isPending = pendingKeys.has(segKey);
                     const list = loaded ? getSortedList(segKey) : [];
 
                     return (
@@ -449,6 +437,7 @@ export const Menu = () => {
                             ref={(el: HTMLDivElement | null) => { sectionRefs.current[segKey] = el; }}
                             sx={{ mt: 4, scrollMarginTop: "110px" }}
                         >
+                            {/* Kategori başlığı */}
                             <Typography
                                 variant="h6"
                                 sx={{
@@ -463,12 +452,8 @@ export const Menu = () => {
                                 {label}
                             </Typography>
 
-                            {/* Yükleniyor — gecikme varsa Loading, yoksa Skeleton */}
-                            {isPending && (
-                                <Loading message={`${label} yükleniyor...`} minHeight={160} />
-                            )}
-
-                            {!loaded && !isPending && (
+                            {/* Skeleton — bu kategori henüz yüklenmediyse */}
+                            {!loaded && (
                                 <Box
                                     sx={{
                                         display: "grid",
@@ -494,10 +479,12 @@ export const Menu = () => {
                                 </Box>
                             )}
 
+                            {/* Boş kategori */}
                             {loaded && list.length === 0 && (
                                 <Alert severity="info">{m.noItems}</Alert>
                             )}
 
+                            {/* Ürün grid */}
                             {loaded && list.length > 0 && (
                                 <Box
                                     sx={{
