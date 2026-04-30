@@ -440,6 +440,7 @@ export const adminDeleteUser = onCall(
             const uid = String(request.data?.uid ?? "").trim();
             if (!uid) throw new HttpsError("invalid-argument", "uid gerekli.");
 
+            await admin.auth().revokeRefreshTokens(uid); // bu silinmek istenen hesap login ise o anda onun token i siliyo ve logout oluyo
             await admin.auth().deleteUser(uid);
             return { ok: true as const };
         } catch (err: any) {

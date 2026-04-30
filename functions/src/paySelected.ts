@@ -1,8 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 
-admin.initializeApp();
-
 type OrderItem = {
     cartId?: string;
     productId?: string;
@@ -44,16 +42,16 @@ function pad2(n: number) {
 }
 
 function dayId(ms: number) {
-    const d = new Date(ms);
-    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    const d = new Date(ms + 3 * 60 * 60 * 1000);
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 }
 function monthId(ms: number) {
-    const d = new Date(ms);
-    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+    const d = new Date(ms + 3 * 60 * 60 * 1000);
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}`;
 }
 function isoWeekId(ms: number) {
-    const d = new Date(ms);
-    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const d = new Date(ms + 3 * 60 * 60 * 1000);
+    const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
     const dayNum = date.getUTCDay() || 7;
     date.setUTCDate(date.getUTCDate() + 4 - dayNum);
     const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
