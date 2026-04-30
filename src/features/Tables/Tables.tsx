@@ -14,7 +14,9 @@ import { ref, get, onValue } from "firebase/database";
 import { TableOrdersDialog } from "./TableOrdersDialog";
 import type { OrdersMap, SelectedTable } from "./utils";
 import { TablesChange } from "./component/TablesChange.tsx";
+import { useAuth } from "../../auth/aut.context";
 
+// Tipler
 type TableEntity = {
     id?: string;
     name?: string;
@@ -27,66 +29,70 @@ type TableEntity = {
 
 type TablesMap = Record<string, TableEntity>;
 
+// Pure helpers
+const TABLES_PATH = "tables";
+
 function asBool(v: unknown): boolean {
     return v === true || v === "true" || v === 1;
 }
 
-export const Tables = () => {
-    const [data, setData] = useState<TablesMap | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+function sumTableTotalsFromNode(node: unknown): number {
+    let sum = 0;
+    const walk = (v: unknown) => {
+        if (!v || typeof v !== "object") return;
+        const obj = v as Record<string, unknown>;
+        if (obj.total != null) {
+            const n =
+                typeof obj.total === "number"
+                    ? obj.total
+                    : typeof obj.total === "string"
+                        ? Number(obj.total)
+                        : NaN;
+            if (!Number.isNaN(n)) sum += n;
+        }
+        for (const child of Object.values(obj)) {
+            if (child && typeof child === "object") walk(child);
+        }
+    };
+    walk(node);
+    return sum;
+}
 
-    const TABLES_PATH = "tables";
+export const Tables = () => {
+    const { user } = useAuth();
+    // Masalar state
+    const [data, setData]       = useState<TablesMap | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState<string | null>(null);
 
     // Orders dialog state
-    const [ordersOpen, setOrdersOpen] = useState(false);
+    const [ordersOpen, setOrdersOpen]       = useState(false);
     const [ordersLoading, setOrdersLoading] = useState(false);
-    const [ordersError, setOrdersError] = useState<string | null>(null);
+    const [ordersError, setOrdersError]     = useState<string | null>(null);
     const [selectedTable, setSelectedTable] = useState<SelectedTable>(null);
-    const [orders, setOrders] = useState<OrdersMap | null>(null);
+    const [orders, setOrders]               = useState<OrdersMap | null>(null);
 
+    // Totals state
     const [totalsByTable, setTotalsByTable] = useState<Record<string, number>>({});
     const [totalsLoading, setTotalsLoading] = useState(false);
 
-    function sumTableTotalsFromNode(node: unknown): number {
-        let sum = 0;
+    // Refs
+    const totalsUnsubsRef = useRef<Array<() => void>>([]);
 
-        const walk = (v: unknown) => {
-            if (!v || typeof v !== "object") return;
-            const obj = v as Record<string, unknown>;
+    const isAdmin = useMemo(
+        () => (user as any)?.isAdmin === true,
+        [user]
+    );
 
-            if (obj.total != null) {
-                const n =
-                    typeof obj.total === "number"
-                        ? obj.total
-                        : typeof obj.total === "string"
-                            ? Number(obj.total)
-                            : NaN;
-                if (!Number.isNaN(n)) sum += n;
-            }
-
-            for (const child of Object.values(obj)) {
-                if (child && typeof child === "object") walk(child);
-            }
-        };
-
-        walk(node);
-        return sum;
-    }
-
-    /**
-     * TABLES realtime
-     */
+    // Masaları realtime dinle
     useEffect(() => {
         setLoading(true);
         setError(null);
 
-        const tablesRef = ref(db, TABLES_PATH);
         const unsub = onValue(
-            tablesRef,
+            ref(db, TABLES_PATH),
             (snap) => {
-                const val = (snap.exists() ? snap.val() : null) as TablesMap | null;
-                setData(val);
+                setData((snap.exists() ? snap.val() : null) as TablesMap | null);
                 setLoading(false);
             },
             () => {
@@ -98,27 +104,28 @@ export const Tables = () => {
         return () => unsub();
     }, []);
 
+    // Sıralı masa listesi
     const list = useMemo(() => {
-        const arr = Object.entries(data ?? {}).map(([key, t]) => ({
-            key,
-            ...t,
-            id: t.id ?? key,
-            number:
-                typeof t.number === "number"
-                    ? t.number
-                    : Number(String(t.number ?? "").replace(/\D/g, "")) || undefined,
-            name: t.name ?? (t.number ? `Masa ${t.number}` : `Masa ${key}`),
-            isOpen: asBool(t.isOpen),
-        }));
+        return Object.entries(data ?? {})
+            .filter(([key]) => {
+                if (key === "t1001" || key === "t1002") return isAdmin;
+                return true;
+            })
+            .map(([key, t]) => ({
+                key,
+                ...t,
+                id: t.id ?? key,
+                number:
+                    typeof t.number === "number"
+                        ? t.number
+                        : Number(String(t.number ?? "").replace(/\D/g, "")) || undefined,
+                name: t.name ?? (t.number ? `Masa ${t.number}` : `Masa ${key}`),
+                isOpen: asBool(t.isOpen),
+            }))
+            .sort((a, b) => (a.number ?? 9999) - (b.number ?? 9999));
+    }, [data, isAdmin]);
 
-        return arr.sort((a, b) => (a.number ?? 9999) - (b.number ?? 9999));
-    }, [data]);
-
-    /**
-     * TOTALS realtime (her masa için)
-     */
-    const totalsUnsubsRef = useRef<Array<() => void>>([]);
-
+    // Her masa için toplam tutarı realtime dinle
     useEffect(() => {
         totalsUnsubsRef.current.forEach((u) => u());
         totalsUnsubsRef.current = [];
@@ -132,41 +139,36 @@ export const Tables = () => {
         setTotalsLoading(true);
         const remainingFirst = new Set(list.map((t) => String(t.id)));
 
-        for (const t of list) {
+        const unsubs = list.map((t) => {
             const tableId = String(t.id);
-            const r = ref(db, `ordersByTable/${tableId}`);
-
             let gotFirst = false;
 
-            const unsub = onValue(
-                r,
-                (snap) => {
-                    const node = snap.exists() ? snap.val() : null;
-                    const sum = sumTableTotalsFromNode(node);
-
-                    setTotalsByTable((prev) => {
-                        if (prev[tableId] === sum) return prev;
-                        return { ...prev, [tableId]: sum };
-                    });
-
-                    if (!gotFirst) {
-                        gotFirst = true;
-                        remainingFirst.delete(tableId);
-                        if (remainingFirst.size === 0) setTotalsLoading(false);
-                    }
-                },
-                () => {
-                    setTotalsByTable((prev) => ({ ...prev, [tableId]: 0 }));
-                    if (!gotFirst) {
-                        gotFirst = true;
-                        remainingFirst.delete(tableId);
-                        if (remainingFirst.size === 0) setTotalsLoading(false);
-                    }
+            const handleSnapshot = (snap: Parameters<Parameters<typeof onValue>[1]>[0]) => {
+                const sum = sumTableTotalsFromNode(snap.exists() ? snap.val() : null);
+                setTotalsByTable((prev) => {
+                    if (prev[tableId] === sum) return prev;
+                    return { ...prev, [tableId]: sum };
+                });
+                if (!gotFirst) {
+                    gotFirst = true;
+                    remainingFirst.delete(tableId);
+                    if (remainingFirst.size === 0) setTotalsLoading(false);
                 }
-            );
+            };
 
-            totalsUnsubsRef.current.push(unsub);
-        }
+            const handleError = () => {
+                setTotalsByTable((prev) => ({ ...prev, [tableId]: 0 }));
+                if (!gotFirst) {
+                    gotFirst = true;
+                    remainingFirst.delete(tableId);
+                    if (remainingFirst.size === 0) setTotalsLoading(false);
+                }
+            };
+
+            return onValue(ref(db, `ordersByTable/${tableId}`), handleSnapshot, handleError);
+        });
+
+        totalsUnsubsRef.current = unsubs;
 
         return () => {
             totalsUnsubsRef.current.forEach((u) => u());
@@ -174,9 +176,7 @@ export const Tables = () => {
         };
     }, [list]);
 
-    /**
-     * Dialog açınca ilk veriyi hızlı çek (mevcut mantık)
-     */
+    // ─── Dialog aç: ilk veriyi get ile çek
     const openTableOrders = useCallback(async (tableId: string, tableName: string) => {
         setSelectedTable({ id: tableId, name: tableName });
         setOrdersOpen(true);
@@ -186,8 +186,7 @@ export const Tables = () => {
 
         try {
             const snap = await get(ref(db, `ordersByTable/${tableId}`));
-            const val = (snap.exists() ? snap.val() : null) as OrdersMap | null;
-            setOrders(val);
+            setOrders((snap.exists() ? snap.val() : null) as OrdersMap | null);
         } catch {
             setOrdersError("Siparişler okunamadı");
         } finally {
@@ -195,38 +194,27 @@ export const Tables = () => {
         }
     }, []);
 
-    /**
-     *  Dialog açıkken siparişleri canlı dinle
-     */
+    // Dialog açıkken siparişleri realtime dinle
     useEffect(() => {
-        // dialog kapalıysa veya table seçili değilse dinleme yok
         if (!ordersOpen || !selectedTable?.id) return;
 
         const tableId = String(selectedTable.id);
-        const ordersRef = ref(db, `ordersByTable/${tableId}`);
-
-        // İlk realtime snapshot gelene kadar (get sonrası) loading’i tekrar yakma:
         let gotFirst = false;
 
         const unsub = onValue(
-            ordersRef,
+            ref(db, `ordersByTable/${tableId}`),
             (snap) => {
                 gotFirst = true;
-                const val = (snap.exists() ? snap.val() : null) as OrdersMap | null;
-                setOrders(val);
-                // dialog açıkken permission yok vs durumlarında error’u temizlemek iyi olur
+                setOrders((snap.exists() ? snap.val() : null) as OrdersMap | null);
                 setOrdersError(null);
             },
             () => {
-                // permission / network vb.
                 setOrdersError("Siparişler okunamadı");
-                // orders’u sıfırlamıyoruz; kullanıcı son gördüğünü görmeye devam etsin
             }
         );
 
-        // Eğer dialog açıldı ama realtime daha gelmediyse (çok kısa) loading’i koru
         const t = setTimeout(() => {
-            if (!gotFirst) setOrdersLoading((prev) => prev); // dokunmuyoruz; openTableOrders zaten set etti
+            if (!gotFirst) setOrdersLoading((prev) => prev);
         }, 0);
 
         return () => {
@@ -235,14 +223,17 @@ export const Tables = () => {
         };
     }, [ordersOpen, selectedTable?.id]);
 
-    async function handleCloseOrdersDialog() {
+    // Dialog kapat
+    const handleCloseOrdersDialog = useCallback(() => {
         setOrdersOpen(false);
-    }
+    }, []);
 
-    async function handleTablesChangeAfterClose() {
-        // tables realtime
-    }
+    // TablesChange callback
+    const handleTablesChangeAfterClose = useCallback(() => {
+        // tables realtime zaten dinleniyor, ek işlem gerekmez
+    }, []);
 
+    // ─── Render ───────────────────────────────────────────────────────────
     return (
         <Box sx={{ pb: 4 }}>
             <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 2, md: 3 }, pt: 2 }}>
@@ -250,7 +241,7 @@ export const Tables = () => {
 
                 {!error && !loading && list.length === 0 && (
                     <Alert severity="info">
-                        Henüz masa yok. RTDB’de <b>{TABLES_PATH}</b> altında masaları ekleyebilirsin.
+                        Henüz masa yok. RTDB'de <b>{TABLES_PATH}</b> altında masaları ekleyebilirsin.
                     </Alert>
                 )}
 
@@ -259,7 +250,11 @@ export const Tables = () => {
                     spacing={1}
                     sx={{ mt: 1.5, alignItems: { sm: "center" }, justifyContent: "space-between" }}
                 >
-                    <TablesChange loading={loading} list={list} onAfterClose={handleTablesChangeAfterClose} />
+                    <TablesChange
+                        loading={loading}
+                        list={list}
+                        onAfterClose={handleTablesChangeAfterClose}
+                    />
                 </Stack>
 
                 <Box
@@ -287,7 +282,7 @@ export const Tables = () => {
                             </Card>
                         ))
                         : list.map((t) => {
-                            const total = totalsByTable[String(t.id)] ?? 0;
+                            const total    = totalsByTable[String(t.id)] ?? 0;
                             const hasTotal = total > 0;
 
                             return (
@@ -311,13 +306,7 @@ export const Tables = () => {
                                 >
                                     <CardActionArea
                                         onClick={() => openTableOrders(String(t.id), String(t.name))}
-                                        sx={{
-                                            p: 0,
-                                            height: "100%",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                        }}
+                                        sx={{ p: 0, height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
                                     >
                                         <CardContent
                                             sx={{
@@ -334,19 +323,14 @@ export const Tables = () => {
                                             <Typography sx={{ fontWeight: 950, fontSize: 20, lineHeight: 1.1 }}>
                                                 {t.name}
                                             </Typography>
-
                                             <Typography variant="caption" sx={{ color: "text.secondary" }}>
                                                 ID: {t.id}
                                             </Typography>
-
                                             <Typography
                                                 variant="caption"
-                                                sx={{
-                                                    color: hasTotal ? "error.main" : "success.main",
-                                                    fontWeight: 800,
-                                                }}
+                                                sx={{ color: hasTotal ? "error.main" : "success.main", fontWeight: 800 }}
                                             >
-                                                TOPLAM: {totalsLoading ? "…" : `${(total)} TL`}
+                                                TOPLAM: {totalsLoading ? "…" : `${total} TL`}
                                             </Typography>
                                         </CardContent>
                                     </CardActionArea>

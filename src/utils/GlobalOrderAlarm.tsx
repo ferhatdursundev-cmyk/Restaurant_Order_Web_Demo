@@ -1,6 +1,6 @@
 import { useAuth } from "../auth/aut.context.tsx";
 import { useEffect, useRef, useState } from "react";
-import { onValue, ref } from "firebase/database";
+import { onValue, ref, get } from "firebase/database";
 import { db } from "../firebase/firebase.ts";
 import {
     Button,
@@ -118,7 +118,7 @@ export const GlobalOrderAlarm = () => {
 
         const unsub = onValue(
             ref(db, "ordersByTable"),
-            (snap) => {
+            async (snap) => {
                 const val = snap.val() ?? {};
                 const signatures: string[] = [];
 
@@ -158,13 +158,25 @@ export const GlobalOrderAlarm = () => {
 
                 if (signatures.length > prevList.length) {
                     const newOnes = signatures.filter((x) => !prevList.includes(x));
-                    const masa    = newOnes[0]?.split("/")[0] ?? "";
+                    const tableId = newOnes[0]?.split("/")[0] ?? "";
+
+                    // Firebase'den masa adını çek
+                    let masaLabel = tableId;
+                    if (tableId) {
+                        try {
+                            const tableSnap = await get(ref(db, `tables/${tableId}`));
+                            const tableVal = tableSnap.val();
+                            if (tableVal?.name) masaLabel = tableVal.name;
+                        } catch {
+                            // fallback tableId
+                        }
+                    }
 
                     setAlarm({
                         open:    true,
                         mode:    "order",
-                        message: masa
-                            ? `Yeni sipariş geldi. Masa: ${masa}`
+                        message: masaLabel
+                            ? `Yeni sipariş geldi. ${masaLabel}`
                             : "Yeni sipariş geldi.",
                     });
                     playAlarm();

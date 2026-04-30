@@ -7,7 +7,6 @@ import {
     Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import { onValue, ref } from "firebase/database";
 import { useLanguage } from "../i18n";
 import { db } from "../firebase/firebase.ts";
@@ -15,6 +14,12 @@ import { db } from "../firebase/firebase.ts";
 type Props = {
     open: boolean;
     onClose: () => void;
+};
+
+type TableData = {
+    id?: string;
+    name?: string;
+    number?: number;
 };
 
 function formatPriceTRY(value: number) {
@@ -47,10 +52,31 @@ export function TableOrdersDrawer({ open, onClose }: Props) {
         return resolveTableId();
     }, [open]);
 
+    const [tableData, setTableData] = useState<TableData | null>(null);
     const [ordersByTable, setOrdersByTable] = useState<Record<string, any>>({});
 
+    const tableLabel = tableData?.name || tableId;
+
     useEffect(() => {
-        if (!open || !tableId) return;
+        if (!open || !tableId) {
+            setTableData(null);
+            return;
+        }
+
+        const dbRef = ref(db, `tables/${tableId}`);
+
+        const unsub = onValue(dbRef, (snapshot) => {
+            setTableData(snapshot.val() || null);
+        });
+
+        return () => unsub();
+    }, [open, tableId]);
+
+    useEffect(() => {
+        if (!open || !tableId) {
+            setOrdersByTable({});
+            return;
+        }
 
         const dbRef = ref(db, `ordersByTable/${tableId}`);
 
@@ -103,10 +129,26 @@ export function TableOrdersDrawer({ open, onClose }: Props) {
                 }}
             >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <ReceiptLongIcon sx={{ color: "#FF7A00", fontSize: 20 }} />
                     <Typography sx={{ fontWeight: 900, fontSize: 16 }}>
                         {h.sentOrders ?? "Kasaya Gönderilen Siparişler"}
                     </Typography>
+
+                    {tableLabel && (
+                        <Box
+                            sx={{
+                                ml: 1,
+                                px: 1,
+                                py: 0.25,
+                                borderRadius: 999,
+                                bgcolor: "rgba(255,122,0,0.12)",
+                                border: "1px solid rgba(255,122,0,0.3)",
+                            }}
+                        >
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#FF7A00" }}>
+                                {tableLabel}
+                            </Typography>
+                        </Box>
+                    )}
                 </Box>
 
                 <IconButton size="small" onClick={onClose}>
@@ -132,6 +174,7 @@ export function TableOrdersDrawer({ open, onClose }: Props) {
                 <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
                     Genel Toplam
                 </Typography>
+
                 <Typography sx={{ fontWeight: 900, fontSize: 18, color: "#FF7A00" }}>
                     {formatPriceTRY(grandTotal)}
                 </Typography>
@@ -178,46 +221,39 @@ export function TableOrdersDrawer({ open, onClose }: Props) {
                                 gap: 1,
                             }}
                         >
-                            {orderData?.items?.map((item: any, index: any) => {
-                                return (
-                                    <Box
-                                        key={index}
+                            {orderData?.items?.map((item: any, index: number) => (
+                                <Box
+                                    key={index}
+                                    sx={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        gap: 1,
+                                    }}
+                                >
+                                    <Box sx={{ flex: 1 }}>
+                                        <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+                                            {item.title}
+                                        </Typography>
+
+                                        {!!item.note && (
+                                            <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
+                                                {item.note}
+                                            </Typography>
+                                        )}
+                                    </Box>
+
+                                    <Typography
                                         sx={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center",
-                                            gap: 1,
+                                            fontSize: 14,
+                                            fontWeight: 800,
+                                            whiteSpace: "nowrap",
                                         }}
                                     >
-                                        <Box sx={{ flex: 1 }}>
-                                            <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
-                                                {item.title}
-                                            </Typography>
-
-                                            {!!item.note && (
-                                                <Typography
-                                                    sx={{
-                                                        fontSize: 12,
-                                                        color: "text.secondary",
-                                                    }}
-                                                >
-                                                    {item.note}
-                                                </Typography>
-                                            )}
-                                        </Box>
-
-                                        <Typography
-                                            sx={{
-                                                fontSize: 14,
-                                                fontWeight: 800,
-                                                whiteSpace: "nowrap",
-                                            }}
-                                        >
-                                            {item.qty ?? 1} x {formatPriceTRY(item.unitPrice ?? 0)}
-                                        </Typography>
-                                    </Box>
-                                );
-                            })}
+                                        {item.qty ?? 1} x {formatPriceTRY(item.unitPrice ?? 0)}
+                                    </Typography>
+                                </Box>
+                            ))}
                         </Box>
 
                         <Divider />
@@ -234,6 +270,7 @@ export function TableOrdersDrawer({ open, onClose }: Props) {
                             <Typography sx={{ fontSize: 12, color: "text.secondary", fontWeight: 600 }}>
                                 Toplam
                             </Typography>
+
                             <Typography sx={{ fontSize: 15, fontWeight: 900, color: "#FF7A00" }}>
                                 {formatPriceTRY(orderData?.total ?? 0)}
                             </Typography>

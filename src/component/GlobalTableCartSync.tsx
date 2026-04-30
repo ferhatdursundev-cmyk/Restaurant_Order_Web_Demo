@@ -14,6 +14,9 @@ type SessionLiveCart = {
     items?: Record<string, LiveCartItem>;
 };
 
+// Bu masa numaraları için Firebase yerine yalnızca local Redux kullanılır
+const LOCAL_ONLY_TABLES = ["t1001", "t1002", "t1003"];
+
 export function GlobalTableCartSync() {
     const dispatch = useAppDispatch();
     const localCartItems = useAppSelector((s) => s.cart.items);
@@ -22,12 +25,15 @@ export function GlobalTableCartSync() {
     // Token süresi dolduğunda Firebase'den hemen sil
     useEffect(() => {
         if (!isExpired || !tableId || !token) return;
+        if (LOCAL_ONLY_TABLES.includes(tableId)) return;
         void remove(ref(db, `liveCartByTable/${tableId}/${token}`));
     }, [isExpired, tableId, token]);
 
     // Yerel sepeti Firebase'e yaz
     useEffect(() => {
         if (!tableId || !token || !tokenExp || isExpired) return;
+
+        if (LOCAL_ONLY_TABLES.includes(tableId)) return;
 
         const nodeRef = ref(db, `liveCartByTable/${tableId}/${token}`);
 
@@ -67,6 +73,11 @@ export function GlobalTableCartSync() {
     // Diğer session'ların cart item'larını dinle
     useEffect(() => {
         if (!tableId || !token || !tokenExp || isExpired) {
+            dispatch(clearTableLiveItems());
+            return;
+        }
+
+        if (LOCAL_ONLY_TABLES.includes(tableId)) {
             dispatch(clearTableLiveItems());
             return;
         }

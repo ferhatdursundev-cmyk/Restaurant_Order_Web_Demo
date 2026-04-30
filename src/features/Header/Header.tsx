@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
     Box,
@@ -16,17 +16,13 @@ import TableRestaurantIcon from "@mui/icons-material/TableRestaurant";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import { getAuth, onAuthStateChanged, signOut, type User } from "firebase/auth";
 import PeopleIcon from "@mui/icons-material/People";
 import { useAuth } from "../../auth/aut.context.tsx";
-// import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { asBool, extractTokenFromQuery } from "../../utils";
-import ShoppingBagIcon from "@mui/icons-material/ShoppingBag";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import { LanguageSwitcher, useLanguage } from "../../i18n";
-import {TableOrdersDrawer} from "../../component";
-//import {useProximityCheck} from "../../hooks";
+import { TableOrdersDrawer } from "../../component";
 
 type Props = {
     title: string;
@@ -34,49 +30,83 @@ type Props = {
 };
 
 export const Header = ({ title }: Props) => {
-    const navigate = useNavigate();
-    const location = useLocation();
-    const auth = getAuth();
-    const { user } = useAuth();
-    const { t } = useLanguage();
-    const h = t.header;
+    const navigate  = useNavigate();
+    const location  = useLocation();
+    const { user }  = useAuth();
+    const { t }     = useLanguage();
+    const h         = t.header;
 
-   // const { status: proximityStatus } = useProximityCheck();
-    // const isProximityOk =  proximityStatus === "allowed";
-    //! Yorum satiri Garson cagirma butonu müsterinin konumu restorant ise görünsün icin gerekli. Butonu kullanmak istediginde bu yorumu satirini ac!
-    const [userData, setUserData] = useState<User | null>(auth.currentUser);
-    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-    const menuOpen = Boolean(anchorEl);
+    // useMemo: initializeApp() sonrasi cagrilmasi garantilenir
+    const auth = useMemo(() => getAuth(), []);
 
+    const [userData, setUserData]           = useState<User | null>(auth.currentUser);
+    const [anchorEl, setAnchorEl]           = useState<null | HTMLElement>(null);
     const [guestAnchorEl, setGuestAnchorEl] = useState<null | HTMLElement>(null);
-    const guestMenuOpen = Boolean(guestAnchorEl);
-
     const [ordersDrawerOpen, setOrdersDrawerOpen] = useState(false);
 
-    const isMenuPage = location.pathname === "/";
+    const menuOpen      = Boolean(anchorEl);
+    const guestMenuOpen = Boolean(guestAnchorEl);
 
+    // ─── Derived
+    const isMenuPage = useMemo(() => location.pathname === "/", [location.pathname]);
+
+    const canSeeToGo = useMemo(
+        () =>
+            !!userData &&
+            (
+                user?.isAdmin === true ||
+                (user?.userType === "garson" && !asBool((user as any)?.isToGoAdmin))
+            ),
+        [userData, user]
+    );
+
+    // Token extraction — yan etki yok, sadece side-effect icin calisir
     useMemo(() => extractTokenFromQuery(location), [location]);
 
+    // ─── Auth listener
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (u) => setUserData(u));
         return () => unsub();
     }, [auth]);
 
-    const handleLogout = async () => {
+    // ─── Menu handlers
+    const handleOpenUserMenu  = useCallback((e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget), []);
+    const handleCloseUserMenu = useCallback(() => setAnchorEl(null), []);
+
+    const handleOpenGuestMenu  = useCallback((e: React.MouseEvent<HTMLElement>) => setGuestAnchorEl(e.currentTarget), []);
+    const handleCloseGuestMenu = useCallback(() => setGuestAnchorEl(null), []);
+
+    // ─── Navigation handlers
+    const handleGoHome = useCallback(() => navigate("/"), [navigate]);
+
+    const handleGoToLogin = useCallback(() => {
+        setGuestAnchorEl(null);
+        navigate("/login");
+    }, [navigate]);
+
+    const handleGoToTables = useCallback(() => {
+        setAnchorEl(null);
+        navigate("/tables");
+    }, [navigate]);
+
+    const handleGoToUserManagement = useCallback(() => {
+        setAnchorEl(null);
+        navigate("/usermanagement");
+    }, [navigate]);
+
+    const handleGoToReport = useCallback(() => {
+        setAnchorEl(null);
+        navigate("/report");
+    }, [navigate]);
+
+    const handleLogout = useCallback(async () => {
+        setAnchorEl(null);
         await signOut(auth);
         navigate("/");
-    };
+    }, [auth, navigate]);
 
-    const canSeeToGo =
-        !!userData &&
-        (
-            user?.isAdmin === true ||
-            (user?.userType === "garson" && !asBool((user as any)?.isToGoAdmin))
-        );
-
-    // Butonu göster: QR ile gelen müşteri (tableId var) veya admin/garson
-    const activeTableId = localStorage.getItem("activeTableId");
-    const showOrdersButton = !!activeTableId || !!userData;
+    // ─── Drawer
+    const handleCloseDrawer = useCallback(() => setOrdersDrawerOpen(false), []);
 
     return (
         <>
@@ -101,20 +131,14 @@ export const Header = ({ title }: Props) => {
                         gap: 0.25,
                     }}
                 >
-                    <Box
-                        sx={{
-                            position: "relative",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                        }}
-                    >
-                        {/* Sol taraf: Geri + Kasaya Gönderilen Siparişler */}
+                    <Box sx={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+
+                        {/* Sol: Geri butonu */}
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                             {!isMenuPage ? (
                                 <Tooltip title={h.back}>
                                     <IconButton
-                                        onClick={() => navigate("/")}
+                                        onClick={handleGoHome}
                                         sx={{
                                             width: { xs: 25, sm: 30 },
                                             height: { xs: 25, sm: 30 },
@@ -130,34 +154,9 @@ export const Header = ({ title }: Props) => {
                             ) : (
                                 <Box sx={{ width: { xs: 25, sm: 30 }, height: { xs: 25, sm: 30 } }} />
                             )}
-
-                            {showOrdersButton &&  activeTableId &&  (
-                                <>
-                                    <Tooltip title={h.sentOrders ?? "Kasaya Gönderilen Siparişler"}>
-                                        <IconButton
-                                            onClick={() => setOrdersDrawerOpen(true)}
-                                            sx={{
-                                                width: { xs: 25, sm: 30 },
-                                                height: { xs: 25, sm: 30 },
-                                                borderRadius: 999,
-                                                transition: "all 120ms ease",
-                                                color:"#FF7A00",
-                                                bgcolor:"#fff",
-                                                "&:hover": { bgcolor: "#FF7A00", color: "#fff" },
-                                            }}
-                                        >
-                                            <ReceiptLongIcon sx={{ fontSize: 18 }} />
-                                        </IconButton>
-                                    </Tooltip>
-
-                                    { /*Buraada tableId sadece activeTableId olmasi lazim. Hata vermesin diye bu sekilde yaptim. Hatanin asil düzeltilmesi
-                                    //! showOrdersButton && activeTableId && kontrolü ile giderilir. Satir 131 de. */}
-                                    {/*  isProximityOk &&   <CallWaiterDialog tableId={activeTableId ?? ""} tableName={`Masa ${activeTableId}`} />*/}
-                                </>
-                            )}
                         </Box>
 
-                        {/* Ortalanmış başlık */}
+                        {/* Orta: Baslik */}
                         <Typography
                             sx={{
                                 position: "absolute",
@@ -175,14 +174,15 @@ export const Header = ({ title }: Props) => {
                             {title}
                         </Typography>
 
-                        {/* Sağ taraf: Dil + Hesap menüsü */}
+                        {/* Sag: Dil + Hesap menusu */}
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                             <LanguageSwitcher size="compact" />
+
                             {!userData ? (
                                 <>
                                     <Tooltip title={h.account}>
                                         <IconButton
-                                            onClick={(e) => setGuestAnchorEl(e.currentTarget)}
+                                            onClick={handleOpenGuestMenu}
                                             sx={{
                                                 width: { xs: 30, sm: 34 },
                                                 height: { xs: 30, sm: 34 },
@@ -199,42 +199,21 @@ export const Header = ({ title }: Props) => {
                                     <MuiMenu
                                         anchorEl={guestAnchorEl}
                                         open={guestMenuOpen}
-                                        onClose={() => setGuestAnchorEl(null)}
+                                        onClose={handleCloseGuestMenu}
                                         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
                                         transformOrigin={{ vertical: "top", horizontal: "right" }}
                                     >
-                                        <MenuItem
-                                            onClick={() => {
-                                                setGuestAnchorEl(null);
-                                                navigate("/login");
-                                            }}
-                                        >
-                                            <ListItemIcon>
-                                                <LoginIcon fontSize="small" />
-                                            </ListItemIcon>
+                                        <MenuItem onClick={handleGoToLogin}>
+                                            <ListItemIcon><LoginIcon fontSize="small" /></ListItemIcon>
                                             <ListItemText primary={h.login} />
                                         </MenuItem>
-
-                                        {/*
-                                         <MenuItem
-                                            onClick={() => {
-                                                setGuestAnchorEl(null);
-                                                navigate("/about");
-                                            }}
-                                        >
-                                            <ListItemIcon>
-                                                <InfoOutlinedIcon fontSize="small" />
-                                            </ListItemIcon>
-                                            <ListItemText primary={h.aboutUs} />
-                                        </MenuItem>
-                                        */}
                                     </MuiMenu>
                                 </>
                             ) : (
                                 <>
                                     <Tooltip title={h.account}>
                                         <IconButton
-                                            onClick={(e) => setAnchorEl(e.currentTarget)}
+                                            onClick={handleOpenUserMenu}
                                             sx={{
                                                 width: { xs: 30, sm: 34 },
                                                 height: { xs: 30, sm: 34 },
@@ -251,75 +230,33 @@ export const Header = ({ title }: Props) => {
                                     <MuiMenu
                                         anchorEl={anchorEl}
                                         open={menuOpen}
-                                        onClose={() => setAnchorEl(null)}
+                                        onClose={handleCloseUserMenu}
                                         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
                                         transformOrigin={{ vertical: "top", horizontal: "right" }}
                                     >
-                                        {user?.userType === "admin" && (
-                                            <MenuItem
-                                                onClick={() => {
-                                                    setAnchorEl(null);
-                                                    navigate("/togo");
-                                                }}
-                                            >
-                                                <ListItemIcon>
-                                                    <ShoppingBagIcon fontSize="small" />
-                                                </ListItemIcon>
-                                                <ListItemText primary={h.package} />
-                                            </MenuItem>
-                                        )}
-
                                         {canSeeToGo && (
-                                            <MenuItem
-                                                onClick={() => {
-                                                    setAnchorEl(null);
-                                                    navigate("/tables");
-                                                }}
-                                            >
-                                                <ListItemIcon>
-                                                    <TableRestaurantIcon fontSize="small" />
-                                                </ListItemIcon>
+                                            <MenuItem onClick={handleGoToTables}>
+                                                <ListItemIcon><TableRestaurantIcon fontSize="small" /></ListItemIcon>
                                                 <ListItemText primary={h.tables} />
                                             </MenuItem>
                                         )}
 
                                         {user?.userType === "admin" && (
-                                            <MenuItem
-                                                onClick={() => {
-                                                    setAnchorEl(null);
-                                                    navigate("/usermanagement");
-                                                }}
-                                            >
-                                                <ListItemIcon>
-                                                    <PeopleIcon fontSize="small" />
-                                                </ListItemIcon>
+                                            <MenuItem onClick={handleGoToUserManagement}>
+                                                <ListItemIcon><PeopleIcon fontSize="small" /></ListItemIcon>
                                                 <ListItemText primary={h.staff} />
                                             </MenuItem>
                                         )}
 
                                         {user?.userType === "admin" && (
-                                            <MenuItem
-                                                onClick={() => {
-                                                    setAnchorEl(null);
-                                                    navigate("/report");
-                                                }}
-                                            >
-                                                <ListItemIcon>
-                                                    <AssessmentIcon />
-                                                </ListItemIcon>
+                                            <MenuItem onClick={handleGoToReport}>
+                                                <ListItemIcon><AssessmentIcon /></ListItemIcon>
                                                 <ListItemText primary={h.report} />
                                             </MenuItem>
                                         )}
 
-                                        <MenuItem
-                                            onClick={() => {
-                                                setAnchorEl(null);
-                                                handleLogout();
-                                            }}
-                                        >
-                                            <ListItemIcon>
-                                                <LogoutIcon fontSize="small" />
-                                            </ListItemIcon>
+                                        <MenuItem onClick={handleLogout}>
+                                            <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
                                             <ListItemText primary={h.logout} />
                                         </MenuItem>
                                     </MuiMenu>
@@ -330,11 +267,7 @@ export const Header = ({ title }: Props) => {
                 </Box>
             </Box>
 
-            {/* Kasaya gönderilen siparişler drawer */}
-            <TableOrdersDrawer
-                open={ordersDrawerOpen}
-                onClose={() => setOrdersDrawerOpen(false)}
-            />
+            <TableOrdersDrawer open={ordersDrawerOpen} onClose={handleCloseDrawer} />
         </>
     );
 };

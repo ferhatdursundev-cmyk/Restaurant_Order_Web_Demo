@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
     Alert,
     Box,
@@ -20,13 +20,11 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { Dropdown } from "../../component/Dropdown.tsx";
 import { adminDeleteUserCallable } from "../../firebase/functions";
 import { ConfirmDialog } from "../../component/ConfirmDialog.tsx";
-import {show as showNotify, useAppDispatch} from "../../store";
+import { show as showNotify, useAppDispatch } from "../../store";
 
+// ─── Tipler ──────────────────────────────────────────────────────────────────
 type UserType = "admin" | "garson" | "kurye" | "restaurant" | "dispatch" | string;
-const userTypeItems = [
-    { value: "garson" as const, label: "Garson" },
-    { value: "admin" as const, label: "Admin" },
-];
+
 type UserRow = {
     uid: string;
     name: string;
@@ -52,82 +50,133 @@ type PasswordForm = {
 type AdminCreateUserResult = { uid: string };
 type OkResult = { ok: true };
 
+// ─── Sabitler (bileşen dışında) ───────────────────────────────────────────────
+const userTypeItems = [
+    { value: "garson" as const, label: "Garson" },
+    { value: "admin" as const, label: "Admin" },
+];
+
+const INITIAL_CREATE_FORM: CreateUserForm = {
+    name: "",
+    email: "",
+    password: "",
+    userType: "garson",
+    isAdmin: false,
+};
+
+const INITIAL_PASS_FORM: PasswordForm = { uid: "", newPassword: "" };
+
+//UserManagementWaiter
 export const UserManagementWaiter = () => {
-    const auth = getAuth();
-    const db = getDatabase();
     const dispatch = useAppDispatch();
-    const functions = getFunctions(undefined, "europe-west1");
+    const auth = getAuth();
+    const db   = getDatabase();
+    // functions — stabil referans
+    const functions = useMemo(() => getFunctions(undefined, "europe-west1"), []);
+
     const myUid = auth.currentUser?.uid ?? null;
-    const [myIsAdmin, setMyIsAdmin] = useState(false);
-    const [users, setUsers] = useState<UserRow[]>([]);
-    const [error, setError] = useState<string | null>(null);
-    const [busy, setBusy] = useState(false);
 
-    // dialogs
-    const [openCreate, setOpenCreate] = useState(false);
-    const [openPass, setOpenPass] = useState(false);
-    const [createForm, setCreateForm] = useState<CreateUserForm>({
-        name: "",
-        email: "",
-        password: "",
-        userType: "garson",
-        isAdmin: false,
-    });
-    const [passForm, setPassForm] = useState<PasswordForm>({ uid: "", newPassword: "" });
+    // State
+    const [myIsAdmin, setMyIsAdmin]   = useState(false);
+    const [users, setUsers]           = useState<UserRow[]>([]);
+    const [error, setError]           = useState<string | null>(null);
+    const [busy, setBusy]             = useState(false);
 
+    // Dialog state
+    const [openCreate, setOpenCreate]               = useState(false);
+    const [openPass, setOpenPass]                   = useState(false);
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-    const [deleteUid, setDeleteUid] = useState<string>("");
+    const [deleteUid, setDeleteUid]                 = useState<string>("");
+    const [createForm, setCreateForm]               = useState<CreateUserForm>(INITIAL_CREATE_FORM);
+    const [passForm, setPassForm]                   = useState<PasswordForm>(INITIAL_PASS_FORM);
 
-    // callable functions (Cloud Functions gerekiyor)
+    // Callable functions
     const adminCreateUser = useMemo(
         () => httpsCallable<CreateUserForm, AdminCreateUserResult>(functions, "adminCreateUser"),
         [functions]
     );
+
     const adminSetPassword = useMemo(
         () => httpsCallable<PasswordForm, OkResult>(functions, "adminSetPassword"),
         [functions]
     );
 
-    // Load my isAdmin from RTDB
+    // Kendi isAdmin durumunu dinle
     useEffect(() => {
         if (!myUid) return;
-        const myRef = ref(db, `users/${myUid}/isAdmin`);
-        return onValue(myRef, (snap) => {
+        return onValue(ref(db, `users/${myUid}/isAdmin`), (snap) => {
             setMyIsAdmin(Boolean(snap.val()));
         });
-    }, [db, myUid]);
+    }, [myUid]);
 
-    // Load all users
+    // Tüm kullanıcıları dinle
     useEffect(() => {
-        const usersRef = ref(db, "users");
-
-        return onValue(usersRef, (snap) => {
+        return onValue(ref(db, "users"), (snap) => {
             const val = snap.val() as Record<string, Omit<UserRow, "uid">> | null;
-
-            if (!val) {
-                setUsers([]);
-                return;
-            }
-            const arr: UserRow[] = Object.entries(val).map(([uid, u]) => ({
-                uid,
-                name: String(u.name ?? ""),
-                email: String(u.email ?? ""),
-                userType: String(u.userType ?? ""),
-                isAdmin: Boolean(u.isAdmin),
-                createdAt: typeof u.createdAt === "string" ? u.createdAt : undefined,
-            }));
-            setUsers(arr);
+            if (!val) { setUsers([]); return; }
+            setUsers(
+                Object.entries(val).map(([uid, u]) => ({
+                    uid,
+                    name:      String(u.name ?? ""),
+                    email:     String(u.email ?? ""),
+                    userType:  String(u.userType ?? ""),
+                    isAdmin:   Boolean(u.isAdmin),
+                    createdAt: typeof u.createdAt === "string" ? u.createdAt : undefined,
+                }))
+            );
         });
-    }, [db]);
+    }, []);
 
-    const resetError = () => setError(null);
+    // Helpers
+    const resetError = useCallback(() => setError(null), []);
 
-    const handleCreate = async () => {
+    // Create form handlers
+    const handleCreateFormChange = useCallback(
+        (field: keyof CreateUserForm) =>
+            (e: React.ChangeEvent<HTMLInputElement>) =>
+                setCreateForm((p) => ({ ...p, [field]: e.target.value })),
+        []
+    );
+
+    const handleCreateUserTypeChange = useCallback(
+        (val: UserType) => setCreateForm((p) => ({ ...p, userType: val })),
+        []
+    );
+
+    // Password form handler
+    const handlePassChange = useCallback(
+        (e: React.ChangeEvent<HTMLInputElement>) =>
+            setPassForm((p) => ({ ...p, newPassword: e.target.value })),
+        []
+    );
+
+    // Dialog açma/kapama
+    const handleOpenCreate = useCallback(() => setOpenCreate(true), []);
+    const handleCloseCreate = useCallback(() => setOpenCreate(false), []);
+    const handleClosePass = useCallback(() => setOpenPass(false), []);
+
+    const handleOpenPass = useCallback((uid: string) => {
+        setPassForm({ uid, newPassword: "" });
+        setOpenPass(true);
+    }, []);
+
+    const handleOpenDelete = useCallback((uid: string) => {
+        setDeleteUid(uid);
+        setConfirmDeleteOpen(true);
+    }, []);
+
+    const handleCloseDelete = useCallback(() => {
+        setConfirmDeleteOpen(false);
+        setDeleteUid("");
+    }, []);
+
+    // CRUD işlemleri
+    const handleCreate = useCallback(async () => {
         resetError();
         if (!myIsAdmin) return;
 
-        const name = createForm.name.trim();
-        const email = createForm.email.trim();
+        const name     = createForm.name.trim();
+        const email    = createForm.email.trim();
         const password = createForm.password.trim();
 
         if (!name || !email || !password || !createForm.userType) {
@@ -145,18 +194,17 @@ export const UserManagementWaiter = () => {
                 isAdmin: createForm.userType === "admin",
             });
             setOpenCreate(false);
+            setCreateForm(INITIAL_CREATE_FORM);
             dispatch(showNotify({ message: `${name} ${createForm.userType} oluşturuldu.`, severity: "success" }));
-            setCreateForm({ name: "", email: "", password: "", userType: "garson", isAdmin: false });
-
         } catch {
             dispatch(showNotify({ message: `${name} ${createForm.userType} oluşturulamadı.`, severity: "error" }));
             setError("Kullanıcı oluşturulamadı (Cloud Function gerekli / yetki yok olabilir).");
         } finally {
             setBusy(false);
         }
-    };
+    }, [resetError, myIsAdmin, createForm, adminCreateUser, dispatch]);
 
-    const handleChangePassword = async () => {
+    const handleChangePassword = useCallback(async () => {
         resetError();
         if (!myIsAdmin) return;
 
@@ -170,34 +218,42 @@ export const UserManagementWaiter = () => {
         try {
             await adminSetPassword({ uid: passForm.uid, newPassword });
             setOpenPass(false);
-            dispatch(showNotify({ message: `Şifre değiştirildi.`, severity: "success" }));
-            setPassForm({ uid: "", newPassword: "" });
-        } catch {
-            dispatch(showNotify({ message: `Şifre değiştirilemedi.`, severity: "error" }));
-            setError("Şifre değiştirilemedi (Cloud Function gerekli / yetki yok olabilir).");
+            setPassForm(INITIAL_PASS_FORM);
+            dispatch(showNotify({ message: "Şifre değiştirildi.", severity: "success" }));
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error("adminSetPassword error:", err);
+            dispatch(showNotify({ message: "Şifre değiştirilemedi.", severity: "error" }));
+            setError(`Şifre değiştirilemedi: ${msg}`);
         } finally {
             setBusy(false);
         }
-    };
+    }, [resetError, myIsAdmin, passForm, adminSetPassword, dispatch]);
 
-    const handleDelete = async (uid: string) => {
+    const handleDelete = useCallback(async (uid: string) => {
         resetError();
         if (!myIsAdmin) return;
 
         setBusy(true);
         try {
-            await adminDeleteUserCallable({ uid }); // callable
-            await remove(ref(db, `users/${uid}`)); // RTDB temizliği
-            dispatch(showNotify({ message: `Kullanıcı silindi.`, severity: "success" }));
-
+            await adminDeleteUserCallable({ uid });
+            await remove(ref(db, `users/${uid}`));
+            dispatch(showNotify({ message: "Kullanıcı silindi.", severity: "success" }));
         } catch {
-            dispatch(showNotify({ message: `Kullanıcı silinemedi.`, severity: "success" }));
+            dispatch(showNotify({ message: "Kullanıcı silinemedi.", severity: "error" }));
             setError("Silinemedi (Cloud Function / yetki).");
         } finally {
             setBusy(false);
         }
-    };
+    }, [resetError, myIsAdmin, dispatch]);
 
+    const handleConfirmDelete = useCallback(async () => {
+        if (!deleteUid) return;
+        await handleDelete(deleteUid);
+        handleCloseDelete();
+    }, [deleteUid, handleDelete, handleCloseDelete]);
+
+    // Render
     return (
         <Box sx={{ maxWidth: 900, mx: "auto", p: 2 }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -207,7 +263,7 @@ export const UserManagementWaiter = () => {
                     <Button
                         startIcon={<PersonAddAltIcon />}
                         variant="contained"
-                        onClick={() => setOpenCreate(true)}
+                        onClick={handleOpenCreate}
                         disabled={busy}
                         sx={{ bgcolor: "#FF7A00", "&:hover": { bgcolor: "#e96d00" }, fontWeight: 900 }}
                     >
@@ -216,23 +272,12 @@ export const UserManagementWaiter = () => {
                 )}
             </Stack>
 
-            {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                </Alert>
-            )}
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
             <Stack spacing={1.25}>
                 {users.map((u) => (
                     <Card key={u.uid} sx={{ borderRadius: 3 }}>
-                        <CardContent
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 1.5,
-                            }}
-                        >
+                        <CardContent sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5 }}>
                             <Box sx={{ minWidth: 0 }}>
                                 <Typography sx={{ fontWeight: 900, lineHeight: 1.15 }} noWrap>
                                     {u.name} • {u.userType.toUpperCase()}
@@ -245,22 +290,15 @@ export const UserManagementWaiter = () => {
                             {myIsAdmin && (
                                 <Stack direction="row" spacing={0.5} alignItems="center">
                                     <IconButton
-                                        onClick={() => {
-                                            setPassForm({ uid: u.uid, newPassword: "" });
-                                            setOpenPass(true);
-                                        }}
+                                        onClick={() => handleOpenPass(u.uid)}
                                         disabled={busy}
                                         title="Şifre değiştir"
                                         sx={{ color: "primary.main" }}
                                     >
                                         <KeyIcon />
                                     </IconButton>
-
                                     <IconButton
-                                        onClick={() => {
-                                            setDeleteUid(u.uid);
-                                            setConfirmDeleteOpen(true);
-                                        }}
+                                        onClick={() => handleOpenDelete(u.uid)}
                                         disabled={busy}
                                         title="Sil"
                                         color="error"
@@ -281,71 +319,61 @@ export const UserManagementWaiter = () => {
             {/* Delete confirm */}
             <ConfirmDialog
                 open={confirmDeleteOpen}
-                title={`Bu kullanıcıyı silmek istiyor musunuz?`}
+                title="Bu kullanıcıyı silmek istiyor musunuz?"
                 confirmText="Evet, sil"
                 cancelText="Vazgeç"
                 busy={busy}
-                onClose={() => {
-                    setConfirmDeleteOpen(false);
-                    setDeleteUid("");
-                }}
-                onConfirm={async () => {
-                    const uid = deleteUid;
-                    if (!uid) return;
-                    await handleDelete(uid);
-                    setConfirmDeleteOpen(false);
-                    setDeleteUid("");
-                }}
+                onClose={handleCloseDelete}
+                onConfirm={handleConfirmDelete}
             />
 
-            {/* Create user dialog -> ConfirmDialog */}
+            {/* Create user dialog */}
             <ConfirmDialog
                 open={openCreate}
                 title="Yeni Kullanıcı Oluştur"
                 confirmText="Oluştur"
                 cancelText="İptal"
                 busy={busy}
-                onClose={() => setOpenCreate(false)}
+                onClose={handleCloseCreate}
                 onConfirm={handleCreate}
             >
                 <Box sx={{ display: "grid", gap: 1.25, pt: 1 }}>
                     <TextField
                         label="İsim"
                         value={createForm.name}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
+                        onChange={handleCreateFormChange("name")}
                         fullWidth
                     />
                     <TextField
                         label="E-Mail"
                         value={createForm.email}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
+                        onChange={handleCreateFormChange("email")}
                         fullWidth
                     />
                     <TextField
                         label="Şifre"
                         type="password"
                         value={createForm.password}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
+                        onChange={handleCreateFormChange("password")}
                         fullWidth
                     />
-
                     <Dropdown<UserType>
                         label="Kullanici Yetkisi"
                         value={createForm.userType as UserType}
-                        onChange={(val) => setCreateForm((p) => ({ ...p, userType: val }))}
+                        onChange={handleCreateUserTypeChange}
                         items={userTypeItems}
                     />
                 </Box>
             </ConfirmDialog>
 
-            {/* Change password dialog -> ConfirmDialog */}
+            {/* Change password dialog */}
             <ConfirmDialog
                 open={openPass}
                 title="Şifre Değiştir"
                 confirmText="Kaydet"
                 cancelText="İptal"
                 busy={busy}
-                onClose={() => setOpenPass(false)}
+                onClose={handleClosePass}
                 onConfirm={handleChangePassword}
             >
                 <Box sx={{ display: "grid", gap: 1.25, pt: 1 }}>
@@ -353,7 +381,7 @@ export const UserManagementWaiter = () => {
                         label="Yeni şifre"
                         type="password"
                         value={passForm.newPassword}
-                        onChange={(e) => setPassForm((p) => ({ ...p, newPassword: e.target.value }))}
+                        onChange={handlePassChange}
                         fullWidth
                     />
                 </Box>

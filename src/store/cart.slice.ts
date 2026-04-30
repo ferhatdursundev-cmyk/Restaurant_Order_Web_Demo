@@ -9,6 +9,7 @@ export type CartItem = {
     qty: number;
     note: string;
     image: string;
+    optionsCatalog?: Record<string, unknown>;
 };
 
 type CartState = { items: CartItem[] };
@@ -25,7 +26,7 @@ const cartSlice = createSlice({
     reducers: {
         addItem(
             state,
-            action: PayloadAction<{ productId: string; title: string; unitPrice: number, image: string }>
+            action: PayloadAction<{ productId: string; title: string; unitPrice: number, image: string, optionsCatalog?: Record<string, unknown> }>
         ) {
             state.items.push({
                 cartId: generateId(),
@@ -35,6 +36,7 @@ const cartSlice = createSlice({
                 image: action.payload.image,
                 qty: 1,
                 note: "", // başlangıç boş
+                optionsCatalog: action.payload.optionsCatalog,
             });
         },
 

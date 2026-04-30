@@ -24,7 +24,7 @@ export const Footer = () => {
                 }}
             >
                 <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
-                    Pruvasoftware © {new Date().getFullYear()} RESTORAN-KAFE-OTEL
+                    Pruvasoftware © {new Date().getFullYear()} QR MENU DEMO
                 </Typography>
                 <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
                     Tüm hakları saklıdır.

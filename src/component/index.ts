@@ -12,3 +12,5 @@ export * from "./PrinterSettingsDialog";
 export * from "./CallWaiterDialog";
 export * from "./GlobalTableSessionGuard";
 export * from "./Loading";
+export * from "./DarkTextField";
+export * from "./TranslatedTitleField";

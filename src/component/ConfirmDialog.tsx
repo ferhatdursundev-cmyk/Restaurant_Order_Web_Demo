@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import {Dialog, DialogActions, DialogContent, DialogTitle, Button, Typography} from "@mui/material";
+import { Dialog, DialogActions, DialogContent, DialogTitle, Button, Typography } from "@mui/material";
 
 export const ConfirmDialog = ({
                                   open,
@@ -12,6 +12,8 @@ export const ConfirmDialog = ({
                                   onClose,
                                   onConfirm,
                                   busy = false,
+                                  maxWidth = "xs",
+                                  maxHeight = "80vh",
                               }: {
     open: boolean;
     title: ReactNode;
@@ -23,15 +25,23 @@ export const ConfirmDialog = ({
     onClose: () => void;
     onConfirm: () => void;
     busy?: boolean;
+    maxWidth?: "xs" | "sm" | "md" | "lg" | "xl";
+    maxHeight?: string | number;
 }) => {
     const hasContent = Boolean(description) || Boolean(children);
 
     return (
-        <Dialog open={open} onClose={busy ? undefined : onClose} fullWidth maxWidth="xs">
-            <DialogTitle>{title}</DialogTitle>
+        <Dialog
+            open={open}
+            onClose={busy ? undefined : onClose}
+            fullWidth
+            maxWidth={maxWidth}
+            PaperProps={{ sx: { maxHeight, display: "flex", flexDirection: "column" } }}
+        >
+            <DialogTitle sx={{ flexShrink: 0 }}>{title}</DialogTitle>
 
             {hasContent ? (
-                <DialogContent>
+                <DialogContent sx={{ overflowY: "auto", flex: 1 }}>
                     {description ? (
                         <Typography sx={{ color: "text.secondary" }}>{description}</Typography>
                     ) : null}
@@ -39,8 +49,8 @@ export const ConfirmDialog = ({
                 </DialogContent>
             ) : null}
 
-            <DialogActions>
-                <Button color="error" variant="contained" onClick={onConfirm} disabled={busy || confirmDisabled} >
+            <DialogActions sx={{ flexShrink: 0 }}>
+                <Button color="error" variant="contained" onClick={onConfirm} disabled={busy || confirmDisabled}>
                     {confirmText}
                 </Button>
                 <Button onClick={onClose} disabled={busy}>
