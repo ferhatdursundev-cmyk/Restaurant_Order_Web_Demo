@@ -9,6 +9,8 @@ import {
     ReportsPage,
     AboutUs,
     ToGoPage,
+    TermsOfService,
+    PrivacyPolicy
 } from "./features";
 import { Box } from "@mui/material";
 import {
@@ -50,7 +52,7 @@ export default function App() {
                 }}
             >
                 <Box sx={{ position: "sticky", top: 0, zIndex: 1200, bgcolor: "background.default" }}>
-                    <Header title="DEMO RESTORAN" />
+                    <Header title="QR MENU DEMO" />
                 </Box>
 
                 <GlobalNotify />
@@ -61,6 +63,8 @@ export default function App() {
                         <Route path="/basket" element={<Basket />} />
                         <Route path="/about" element={<AboutUs />} />
                         <Route path="/login" element={<Login />} />
+                        <Route path="/kullanim-kosullari" element={<TermsOfService />} />
+                        <Route path="/gizlilik-politikasi" element={<PrivacyPolicy />} />
                         <Route path="/t/:tableId" element={<Menu />} />
                         <Route
                             path="/tables"

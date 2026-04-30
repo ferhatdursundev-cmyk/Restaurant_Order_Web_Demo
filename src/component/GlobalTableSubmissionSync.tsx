@@ -3,6 +3,8 @@ import { onValue, ref } from "firebase/database";
 import { db } from "../firebase/firebase";
 import { clearCart, useAppDispatch } from "../store";
 
+const LOCAL_ONLY_TABLES = ["t1001", "t1002"];
+
 function getCurrentTableSession() {
     const tokenKey = Object.keys(sessionStorage).find((k) =>
         k.startsWith("tableToken:")
@@ -15,10 +17,7 @@ function getCurrentTableSession() {
     const tableId = tokenKey.replace("tableToken:", "");
     const token = sessionStorage.getItem(tokenKey);
 
-    return {
-        tableId,
-        token,
-    };
+    return { tableId, token };
 }
 
 export function GlobalTableSubmissionSync() {
@@ -28,6 +27,9 @@ export function GlobalTableSubmissionSync() {
         const { tableId, token } = getCurrentTableSession();
 
         if (!tableId || !token) return;
+
+        // Local-only masalar için Firebase submission sinyali dinleme
+        if (LOCAL_ONLY_TABLES.includes(tableId)) return;
 
         const resetRef = ref(db, `tableCartSignals/${tableId}/${token}`);
 

@@ -8,6 +8,7 @@ export type LiveCartItem = {
     qty?: number;
     note?: string;
     image?: string;
+    optionsCatalog?: Record<string, unknown>;
 };
 
 type TableLiveCartState = {

@@ -5,10 +5,18 @@ import {
     ref,
     update,
     runTransaction,
+    get,
     type Unsubscribe,
 } from "firebase/database";
 import { db } from "../firebase/firebase";
 
+export type PrintItem = {
+    title: string;
+    qty: number;
+    note?: string;
+    lineTotal: number;
+    selectedOptions?: string[];
+};
 type AnyOrderItem = {
     title?: string;
     productId?: string;
@@ -16,16 +24,10 @@ type AnyOrderItem = {
     unitPrice?: number;
     note?: string;
     price?: number;
+    selectedOptions?: string[];
 };
 
-type NormalizedPrintItem = {
-    title: string;
-    qty: number;
-    note: string;
-    lineTotal: number;
-};
-
-function normalizeItems(order: any): NormalizedPrintItem[] {
+function normalizeItems(order: any): PrintItem[] {
     const rawItemsArr = Array.isArray(order?.itemsArr)
         ? order.itemsArr
         : order?.items && typeof order.items === "object"
@@ -46,6 +48,7 @@ function normalizeItems(order: any): NormalizedPrintItem[] {
             qty,
             note: it?.note ?? "",
             lineTotal: unit * qty,
+            selectedOptions: Array.isArray(it?.selectedOptions) ? it.selectedOptions : undefined,
         };
     });
 }
@@ -60,11 +63,31 @@ async function isPrintAgentReady() {
     }
 }
 
+async function fetchTableNameMap(): Promise<Record<string, string>> {
+    try {
+        const snap = await get(ref(db, "tables"));
+        const val = snap.val() || {};
+        const map: Record<string, string> = {};
+        for (const [id, data] of Object.entries(val)) {
+            const name = (data as any)?.name;
+            if (name) map[id] = String(name);
+        }
+        return map;
+    } catch {
+        return {};
+    }
+}
+
 export function GlobalAutoPrint() {
     const knownOrdersRef = useRef<Set<string>>(new Set());
     const tableUnsubsRef = useRef<Map<string, Unsubscribe>>(new Map());
+    const tableNameMapRef = useRef<Record<string, string>>({});
 
     useEffect(() => {
+        fetchTableNameMap().then((map) => {
+            tableNameMapRef.current = map;
+        });
+
         const rootRef = ref(db, "ordersByTable");
 
         const seedUnsub = onValue(
@@ -150,13 +173,19 @@ export function GlobalAutoPrint() {
                             0
                         );
 
+                        const tableName =
+                            lockedOrder?.tableName ||
+                            lockedOrder?.table ||
+                            tableNameMapRef.current[tableId] ||
+                            tableId;
+
                         try {
                             const payload = {
                                 orderId,
-                                tableName:
-                                    lockedOrder?.tableName ||
-                                    lockedOrder?.table ||
-                                    tableId,
+                                tableName,
+                                customerName: lockedOrder?.customerName || null,
+                                customerPhone: lockedOrder?.customerPhone || null,
+                                paymentMethod: lockedOrder?.paymentMethod || null,
                                 items,
                                 total,
                             };

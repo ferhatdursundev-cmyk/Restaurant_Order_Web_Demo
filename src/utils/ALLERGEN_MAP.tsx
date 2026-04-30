@@ -35,7 +35,6 @@ const ALLERGEN_MAP_TR: Record<string, string> = {
     "8":  "Süt proteini içerir",
     "9":  "Kafein içerir",
     "10": "Kinin içerir",
-    "11": "Tatlandırıcı içerir",
     "12": "Fenilalanin kaynağı içerir",
     "13": "Mumlanmıştır",
     "14": "Taurin içerir",

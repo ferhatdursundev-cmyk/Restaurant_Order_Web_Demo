@@ -1,23 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
     Accordion,
     AccordionSummary,
     AccordionDetails,
     Box,
     Button,
-    TextField,
     Typography,
     FormControl,
     InputLabel,
     Select,
     MenuItem as MuiMenuItem,
     IconButton,
+    Chip,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import {
     updateNote,
     removeItem,
-    clearCart,
     useAppDispatch,
     useAppSelector,
     show as showNotify,
@@ -25,29 +24,19 @@ import {
 import { useAuth } from "../../auth/aut.context";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { db } from "../../firebase/firebase";
-import { onValue, ref, push, set, serverTimestamp, runTransaction, remove, update } from "firebase/database";
-import { useNavigate } from "react-router-dom";
-import { ConfirmDialog } from "../../component";
-import { getAuth } from "firebase/auth";
-import { clearTableLiveItems } from "../../store";
+import { onValue, ref } from "firebase/database";
+import { ConfirmDialog, DarkTextField, PremiumSwitch } from "../../component";
 import { useProximityCheck, useTableSession } from "../../hooks";
 import { useLanguage } from "../../i18n";
+import { Radio, RadioGroup, FormControlLabel as MuiFormControlLabel } from "@mui/material";
+import { useOrderSender } from "./hook/useOrderSender.ts";
+import { useBasketForm } from "./hook/useBasketForm";
 
 type TableRow = { id: string; name?: string };
-
-function storageKeyForTable(tableId: string) {
-    return `tableToken:${tableId}`;
-}
+const LOCAL_ONLY_TABLES = ["t1001", "t1002", "t1003"];
 
 function asBool(v: unknown) {
     return v === true || v === "true" || v === 1 || v === "1";
-}
-
-function dateKey(d = new Date()) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
 }
 
 export const Basket = () => {
@@ -56,34 +45,43 @@ export const Basket = () => {
 
     const dispatch = useAppDispatch();
     const { user } = useAuth();
-    const auth = getAuth();
     const { isExpired, tableId: qrTableId } = useTableSession();
     const { status: proximityStatus } = useProximityCheck();
-    const isProximityOk = (user as any)?.isAdmin || proximityStatus === "allowed";
+
     const items = useAppSelector((s) => s.cart.items);
     const liveTableItems = useAppSelector((s) => s.tableLiveCart.items);
-    const navigate = useNavigate();
-
-    const [confirmOpen, setConfirmOpen] = useState(false);
-    const [confirmBusy, setConfirmBusy] = useState(false);
-    const [customerEmail, setCustomerEmail] = useState("");
-
-    const [expanded, setExpanded] = useState<string | false>(items.length > 0 ? items[0].cartId : false);
+    const isOrder = useAppSelector((s) => s.orderSettings.isOrder);
 
     const isLoggedIn = !!user;
 
-    const isToGoAdmin = (user as any)?.userType === "garson" && asBool((user as any)?.isToGoAdmin);
-
-    const canChooseTable = Boolean(
-        isLoggedIn && !isToGoAdmin && (asBool((user as any)?.isAdmin) || (user as any)?.userType === "garson")
+    const isToGoAdmin = useMemo(
+        () => (user as any)?.userType === "garson" && asBool((user as any)?.isToGoAdmin),
+        [user]
     );
 
+    const isLocalOnlyTable = useMemo(
+        () => LOCAL_ONLY_TABLES.includes(qrTableId ?? ""),
+        [qrTableId]
+    );
+
+    const canChooseTable = useMemo(
+        () =>
+            Boolean(
+                isLoggedIn &&
+                !isToGoAdmin &&
+                (asBool((user as any)?.isAdmin) || (user as any)?.userType === "garson")
+            ),
+        [isLoggedIn, isToGoAdmin, user]
+    );
+
+    const isProximityOk = useMemo(
+        () => (user as any)?.isAdmin || proximityStatus === "allowed",
+        [user, proximityStatus]
+    );
+
+    // ─── Masalar
     const [tables, setTables] = useState<TableRow[]>([]);
     const [selectedTableId, setSelectedTableId] = useState<string>("");
-
-    const isOrder = useAppSelector((s) => s.orderSettings.isOrder);
-
-    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim());
 
     useEffect(() => {
         const r = ref(db, "tables");
@@ -103,135 +101,189 @@ export const Basket = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [canChooseTable]);
 
-    const mergedItems = useMemo(() => {
-        return [...items, ...liveTableItems];
-    }, [items, liveTableItems]);
+    const handleTableChange = useCallback(
+        (e: any) => canChooseTable && setSelectedTableId(e.target.value),
+        [canChooseTable]
+    );
 
-    const total = useMemo(() => {
-        return mergedItems.reduce((sum: number, i) => sum + (i.unitPrice ?? 0) * (i.qty ?? 1), 0);
-    }, [mergedItems]);
+    // ─── Sipariş için hesaplanan masa ID
+    const tableIdToUse = useMemo(
+        () =>
+            isToGoAdmin
+                ? "t999"
+                : canChooseTable
+                    ? selectedTableId
+                    : qrTableId,
+        [isToGoAdmin, canChooseTable, selectedTableId, qrTableId]
+    );
 
-    const sendOrder = async () => {
-        if (isToGoAdmin && !isValidEmail) {
-            dispatch(showNotify({ message: b.emailError, severity: "error" }));
-            return;
-        }
+    const shouldRequireToken = useMemo(
+        () => !isLoggedIn && !isToGoAdmin && !canChooseTable,
+        [isLoggedIn, isToGoAdmin, canChooseTable]
+    );
 
-        if (canChooseTable && !selectedTableId) {
-            alert(b.noTableSelected);
-            return;
-        }
+    // ─── Birleşik ürünler & toplam
+    const mergedItems = useMemo(() => [...items, ...liveTableItems], [items, liveTableItems]);
 
-        const tableIdToUse = isToGoAdmin ? "t999" : canChooseTable ? selectedTableId : qrTableId;
+    const total = useMemo(
+        () => mergedItems.reduce((sum, i) => sum + (i.unitPrice ?? 0) * (i.qty ?? 1), 0),
+        [mergedItems]
+    );
 
-        if (!tableIdToUse) {
-            dispatch(showNotify({ message: b.qrExpired, severity: "error" }));
-            return;
-        }
+    // ─── Form state (custom hook)
+    const {
+        customerEmail,
+        customerFirstName,
+        customerLastName,
+        customerPhone,
+        paymentMethod,
+        isValidEmail,
+        isValidFirstName,
+        isValidLastName,
+        isValidPhone,
+        handleEmailChange,
+        handleFirstNameChange,
+        handleLastNameChange,
+        handlePhoneChange,
+        handlePaymentMethodChange,
+    } = useBasketForm();
 
-        if (mergedItems.length === 0) return;
+    // ─── Item options (flat)
+    // Record<cartId, Record<optionId, boolean>>
+    const [itemOptions, setItemOptions] = useState<Record<string, Record<number, boolean>>>({});
 
-        const shouldRequireToken = !isLoggedIn && !isToGoAdmin && !canChooseTable;
+    const toggleOption = useCallback((cartId: string, id: number) => {
+        setItemOptions((prev) => {
+            const cur = prev[cartId] ?? {};
+            return { ...prev, [cartId]: { ...cur, [id]: !cur[id] } };
+        });
+    }, []);
 
-        const tokenKey = storageKeyForTable(tableIdToUse);
-        const token = sessionStorage.getItem(tokenKey);
-        const expStr = sessionStorage.getItem(`tableTokenExp:${tableIdToUse}`);
-        const exp = expStr ? Number(expStr) : null;
+    // ─── Accordion
+    const [expanded, setExpanded] = useState<string | false>(
+        items.length > 0 ? items[0].cartId : false
+    );
 
-        if (shouldRequireToken && (!exp || Date.now() >= exp)) {
-            dispatch(showNotify({ message: b.tokenExpired, severity: "error" }));
-            return;
-        }
+    const handleAccordionChange = useCallback(
+        (cartId: string) => () =>
+            setExpanded((prev) => (prev === cartId ? false : cartId)),
+        []
+    );
 
-        if (shouldRequireToken && !token) {
-            dispatch(showNotify({ message: b.tokenMissing, severity: "error" }));
-            return;
-        }
+    // ─── Ürün silme
+    const handleRemoveItem = useCallback(
+        (cartId: string, title: string) => (e: React.MouseEvent) => {
+            e.stopPropagation();
+            dispatch(removeItem(cartId));
+            dispatch(showNotify({ message: b.removedFromCart(title), severity: "success" }));
+        },
+        [dispatch, b]
+    );
 
-        const path = `ordersByTable/${tableIdToUse}`;
+    // ─── Not güncelleme
+    const handleNoteChange = useCallback(
+        (cartId: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+            dispatch(updateNote({ cartId, note: e.target.value })),
+        [dispatch]
+    );
 
-        let nextNo: number | undefined = undefined;
+    // ─── sendOrder (custom hook)
+    const { sendOrder } = useOrderSender({
+        mergedItems,
+        total,
+        itemOptions,
+        tableIdToUse,
+        selectedTableId,
+        tables,
+        isToGoAdmin,
+        isLocalOnlyTable,
+        canChooseTable,
+        isValidEmail,
+        isValidFirstName,
+        isValidLastName,
+        isValidPhone,
+        customerEmail,
+        customerFirstName,
+        customerLastName,
+        customerPhone,
+        paymentMethod,
+        shouldRequireToken,
+    });
 
-        if (isToGoAdmin) {
-            const day = dateKey();
-            const counterRef = ref(db, `publicOrderNo/${day}/counter`);
+    // ─── Confirm dialog
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [confirmBusy, setConfirmBusy] = useState(false);
+    const confirmBusyRef = useRef(confirmBusy); // stale closure için
+    confirmBusyRef.current = confirmBusy;
 
-            const counterRes = await runTransaction(counterRef, (cur) => {
-                const n = typeof cur === "number" ? cur : 0;
-                return n + 1;
-            });
+    const handleConfirmOpen = useCallback(() => setConfirmOpen(true), []);
+    const handleConfirmClose = useCallback(() => setConfirmOpen(false), []);
 
-            if (!counterRes.committed) {
-                dispatch(showNotify({ message: b.counterError, severity: "error" }));
-                return;
-            }
-
-            nextNo = counterRes.snapshot.val() as number;
-        }
-
-        const orderRef = push(ref(db, path));
-
-        const author =
-            (user as any)?.name ??
-            auth.currentUser?.displayName ??
-            (auth.currentUser?.email ? auth.currentUser.email.split("@")[0] : null) ??
-            "Müşteri";
-
-        const now = Date.now();
-
-        const payload: any = {
-            author: author + " " + ((user as any)?.userType ?? ""),
-            customerEmail: customerEmail.trim(),
-            status: isToGoAdmin ? "preparing" : "new",
-            createdAt: serverTimestamp(),
-            createdAtMs: now,
-            source: isToGoAdmin ? "togo" : "basket",
-            tableId: tableIdToUse,
-            tableToken: shouldRequireToken ? token : null,
-            printed: false,
-            printStarted: false,
-            items: mergedItems.map((i) => ({
-                cartId: i.cartId,
-                productId: i.productId,
-                title: i.title,
-                unitPrice: i.unitPrice,
-                qty: i.qty ?? 1,
-                note: i.note ?? "",
-                image: i.image ?? "",
-            })),
-            total,
-        };
-
-        if (typeof nextNo === "number") {
-            payload.publicOrderNo = nextNo;
-        }
-
+    const handleConfirm = useCallback(async () => {
+        setConfirmBusy(true);
         try {
-            await set(orderRef, payload);
-
-            if (!isToGoAdmin && !canChooseTable) {
-                await remove(ref(db, `liveCartByTable/${tableIdToUse}`));
-                await update(ref(db, `tableCartSignals/${tableIdToUse}`), {
-                    lastSubmittedAt: Date.now(),
-                    lastResetAt: Date.now(), // Diger kullanicilari tetikler ve onlarin local sepetlerini siler.
-                });
-            }
-
-            dispatch(showNotify({
-                message: isToGoAdmin ? b.orderSentEmail : b.orderSent,
-                severity: "success",
-            }));
-        } catch (e) {
-            console.error("sendOrder error:", e);
-            dispatch(showNotify({ message: b.orderError, severity: "error" }));
-            return;
+            await sendOrder();
+            setConfirmOpen(false);
+        } finally {
+            setConfirmBusy(false);
         }
+    }, [sendOrder]);
 
-        dispatch(clearCart());
-        dispatch(clearTableLiveItems());
-        navigate("/");
-    };
+    // ─── Gönder butonu disabled kontrolü
+    const isSendDisabled = useMemo(
+        () =>
+            isExpired ||
+            !isOrder ||
+            mergedItems.length === 0 ||
+            (canChooseTable && !selectedTableId) ||
+            (isLocalOnlyTable && (!isValidFirstName || !isValidLastName || !isValidPhone)),
+        [
+            isExpired,
+            isOrder,
+            mergedItems.length,
+            canChooseTable,
+            selectedTableId,
+            isLocalOnlyTable,
+            isValidFirstName,
+            isValidLastName,
+            isValidPhone,
+        ]
+    );
 
+    // ─── Confirm dialog title
+    const confirmTitle = useMemo(() => {
+        if (isLocalOnlyTable) return b.localConfirmTitle;
+        const highlight = b.confirmTitleHighlight;
+        const parts = b.confirmTitle.split(highlight);
+        return (
+            <>
+                {parts[0]}
+                <Box component="span" sx={{ color: "error.main", fontSize: "1.3em", fontWeight: 900 }}>
+                    {highlight}
+                </Box>
+                {parts[1]}
+            </>
+        );
+    }, [isLocalOnlyTable, b]);
+
+    // ─── Masa seçici içerik ───────────────────────────────────────────────────
+    const tableMenuItems = useMemo(() => {
+        if (canChooseTable) {
+            return tables.map((t) => (
+                <MuiMenuItem key={t.id} value={t.id}>
+                    {t.name ?? t.id}
+                </MuiMenuItem>
+            ));
+        }
+        if (qrTableId) {
+            const found = tables.find((t) => t.id === qrTableId);
+            const label = found?.name ?? qrTableId;
+            return [<MuiMenuItem key={qrTableId} value={qrTableId}>{label}</MuiMenuItem>];
+        }
+        return [<MuiMenuItem key="" value="">{b.tableNotFound}</MuiMenuItem>];
+    }, [canChooseTable, tables, qrTableId, b]);
+
+    // ─── JSX ─────────────────────────────────────────────────────────────────
     return (
         <Box sx={{ maxWidth: 800, mx: "auto", px: 2, py: 4 }}>
             <Typography sx={{ fontWeight: 900, fontSize: 24, mb: 3 }}>{b.title}</Typography>
@@ -242,74 +294,142 @@ export const Basket = () => {
                 </Typography>
             )}
 
-            {items.map((item) => (
-                <Accordion
-                    key={item.cartId}
-                    expanded={expanded === item.cartId}
-                    onChange={() => setExpanded(expanded === item.cartId ? false : item.cartId)}
-                    sx={{
-                        borderRadius: 3,
-                        mb: 2,
-                        overflow: "hidden",
-                        border: "1px solid",
-                        borderColor: "divider",
-                        boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-                    }}
-                >
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 2, width: "100%" }} component="span">
-                            <IconButton
-                                component="span"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    dispatch(removeItem(item.cartId));
-                                    dispatch(showNotify({ message: b.removedFromCart(item.title), severity: "success" }));
-                                }}
-                                sx={{
-                                    color: "#e53935",
-                                    bgcolor: "rgba(229,57,53,0.08)",
-                                    "&:hover": { bgcolor: "rgba(229,57,53,0.15)" },
-                                }}
-                            >
-                                <DeleteOutlineIcon />
-                            </IconButton>
+            {/* ─── Kendi ürünleri ─── */}
+            {items.map((item) => {
+                const allOptions: { id: number; key?: string; label: string; price?: number | null }[] =
+                    Array.isArray(item.optionsCatalog) ? item.optionsCatalog : [];
+                const opts = itemOptions[item.cartId] ?? {};
+                const selectedChips = allOptions.filter((o) => !!opts[o.id]);
+                const hasSelectedChips = selectedChips.length > 0;
 
-                            {item.image && (
-                                <Box
-                                    component="img"
-                                    src={item.image}
-                                    alt={item.title}
-                                    sx={{ width: 60, height: 60, objectFit: "cover", borderRadius: 2, flexShrink: 0 }}
-                                />
+                return (
+                    <Accordion
+                        key={item.cartId}
+                        expanded={expanded === item.cartId}
+                        onChange={handleAccordionChange(item.cartId)}
+                        sx={{
+                            borderRadius: 3,
+                            mb: 2,
+                            overflow: "hidden",
+                            border: "1px solid",
+                            borderColor: "divider",
+                            boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+                        }}
+                    >
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 2, width: "100%" }} component="span">
+                                <IconButton
+                                    component="span"
+                                    onClick={handleRemoveItem(item.cartId, item.title)}
+                                    sx={{
+                                        color: "#e53935",
+                                        bgcolor: "rgba(229,57,53,0.08)",
+                                        "&:hover": { bgcolor: "rgba(229,57,53,0.15)" },
+                                    }}
+                                >
+                                    <DeleteOutlineIcon />
+                                </IconButton>
+
+                                {item.image && (
+                                    <Box
+                                        component="img"
+                                        src={item.image}
+                                        alt={item.title}
+                                        sx={{ width: 60, height: 60, objectFit: "cover", borderRadius: 2, flexShrink: 0 }}
+                                    />
+                                )}
+
+                                <Box sx={{ flex: 1 }}>
+                                    <Typography sx={{ fontWeight: 800 }}>{item.title}</Typography>
+                                    <Typography sx={{ fontSize: 13, opacity: 0.7 }}>
+                                        {`${item.unitPrice} TL`} • x{item.qty ?? 1}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        </AccordionSummary>
+
+                        <AccordionDetails sx={{ bgcolor: "rgba(17,24,39,0.92)" }}>
+                            {/* SEÇENEKLER */}
+                            {allOptions.length > 0 && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography sx={{ fontWeight: 700, fontSize: 12, color: "rgba(255,255,255,0.55)", letterSpacing: 1, textTransform: "uppercase", mb: 1 }}>
+                                        Seçenekler
+                                    </Typography>
+                                    {allOptions.map((o) => (
+                                        <Box
+                                            key={o.id}
+                                            sx={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                py: 0.5,
+                                                borderBottom: "1px solid rgba(255,255,255,0.07)",
+                                            }}
+                                        >
+                                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                                <Typography sx={{ fontSize: 13, color: "white" }}>{o.label}</Typography>
+                                                {(o.price ?? 0) > 0 && (
+                                                    <Typography sx={{ fontSize: 11, color: "#FF7A00" }}>
+                                                        +{o.price} TL
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                            <PremiumSwitch
+                                                checked={!!opts[o.id]}
+                                                onChange={() => toggleOption(item.cartId, o.id)}
+                                            />
+                                        </Box>
+                                    ))}
+                                </Box>
                             )}
 
-                            <Box sx={{ flex: 1 }}>
-                                <Typography sx={{ fontWeight: 800 }}>{item.title}</Typography>
-                                <Typography sx={{ fontSize: 13, opacity: 0.7 }}>
-                                    {`${(item.unitPrice)} TL`} • x{item.qty ?? 1}
-                                </Typography>
+                            {/* SEÇİLEN SEÇENEKLER CHIP ÖZETİ */}
+                            {hasSelectedChips && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography sx={{ fontWeight: 700, fontSize: 12, color: "rgba(255,255,255,0.55)", letterSpacing: 1, textTransform: "uppercase", mb: 1 }}>
+                                        Seçilenler
+                                    </Typography>
+                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                                        {selectedChips.map((o) => (
+                                            <Chip
+                                                key={o.id}
+                                                label={(o.price ?? 0) > 0 ? `${o.label} +${o.price}TL` : o.label}
+                                                size="small"
+                                                onDelete={() => toggleOption(item.cartId, o.id)}
+                                                sx={{
+                                                    bgcolor: "rgba(255,255,255,0.10)",
+                                                    color: "white",
+                                                    fontWeight: 600,
+                                                    fontSize: 12,
+                                                    borderRadius: 999,
+                                                    border: "1px solid rgba(255,255,255,0.18)",
+                                                    "& .MuiChip-deleteIcon": {
+                                                        color: "rgba(255,255,255,0.5)",
+                                                        "&:hover": { color: "#e53935" },
+                                                    },
+                                                }}
+                                            />
+                                        ))}
+                                    </Box>
+                                </Box>
+                            )}
+
+                            {/* NOT */}
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+                                <Typography sx={{ fontWeight: 700, minWidth: 50, color: "white" }}>{b.note}</Typography>
+                                <DarkTextField
+                                    placeholder={b.notePlaceholder}
+                                    value={item.note ?? ""}
+                                    onChange={handleNoteChange(item.cartId)}
+                                    sx={{ mb: 0 }}
+                                />
                             </Box>
-                        </Box>
-                    </AccordionSummary>
+                        </AccordionDetails>
+                    </Accordion>
+                );
+            })}
 
-                    <AccordionDetails>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                            <Typography sx={{ fontWeight: 700, minWidth: 50 }}>{b.note}</Typography>
-                            <TextField
-                                placeholder={b.notePlaceholder}
-                                fullWidth
-                                value={item.note ?? ""}
-                                onChange={(e) =>
-                                    dispatch(updateNote({ cartId: item.cartId, note: e.target.value }))
-                                }
-                                size="small"
-                                sx={{ bgcolor: "background.paper", borderRadius: 2 }}
-                            />
-                        </Box>
-                    </AccordionDetails>
-                </Accordion>
-            ))}
-
+            {/* ─── Masadaki diğer kişilerin ürünleri ─── */}
             {liveTableItems.length > 0 && (
                 <>
                     <Typography sx={{ fontWeight: 800, fontSize: 16, mt: 3, mb: 1.5 }}>
@@ -343,7 +463,7 @@ export const Basket = () => {
                                     <Box sx={{ flex: 1 }}>
                                         <Typography sx={{ fontWeight: 800 }}>{item.title}</Typography>
                                         <Typography sx={{ fontSize: 13, opacity: 0.7 }}>
-                                            {`${(item.unitPrice)} TL`} • x{item.qty ?? 1}
+                                            {`${item.unitPrice} TL`} • x{item.qty ?? 1}
                                         </Typography>
                                     </Box>
                                 </Box>
@@ -358,6 +478,7 @@ export const Basket = () => {
                 </>
             )}
 
+            {/* ─── Alt panel: toplam + form + sipariş ─── */}
             <Box
                 sx={{
                     mt: 3,
@@ -371,46 +492,67 @@ export const Basket = () => {
                 }}
             >
                 <Typography sx={{ fontSize: 12.5, opacity: 0.75, mb: 1 }}>
-                    {b.total}: {`${(total)} TL`}
+                    {b.total}: {`${total} TL`}
                 </Typography>
 
+                {isLocalOnlyTable && (
+                    <>
+                        <DarkTextField
+                            label={b.firstName}
+                            placeholder={b.firstNamePlaceholder}
+                            value={customerFirstName}
+                            onChange={handleFirstNameChange}
+                            hasError={customerFirstName.length > 0 && !isValidFirstName}
+                            helperText={customerFirstName.length > 0 && !isValidFirstName ? b.firstNameError : ""}
+                        />
+                        <DarkTextField
+                            label={b.lastName}
+                            placeholder={b.lastNamePlaceholder}
+                            value={customerLastName}
+                            onChange={handleLastNameChange}
+                            hasError={customerLastName.length > 0 && !isValidLastName}
+                            helperText={customerLastName.length > 0 && !isValidLastName ? b.lastNameError : ""}
+                        />
+                        <DarkTextField
+                            label={b.phoneNumber}
+                            placeholder={b.phoneNumberPlaceholder}
+                            value={customerPhone}
+                            onChange={handlePhoneChange}
+                            hasError={customerPhone.length > 0 && !isValidPhone}
+                            helperText={customerPhone.length > 0 && !isValidPhone ? b.phoneNumberError : ""}
+                            inputProps={{ inputMode: "tel" }}
+                        />
+                        <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.75)", mb: 0.5 }}>
+                            {b.paymentMethod}
+                        </Typography>
+                        <RadioGroup
+                            row
+                            value={paymentMethod}
+                            onChange={handlePaymentMethodChange}
+                            sx={{ mb: 1 }}
+                        >
+                            <MuiFormControlLabel
+                                value="cash"
+                                control={<Radio size="small" sx={{ color: "rgba(255,255,255,0.6)", "&.Mui-checked": { color: "#FF7A00" } }} />}
+                                label={<Typography sx={{ fontSize: 13, color: "white", fontWeight: 600 }}>{b.paymentCashAtDoor}</Typography>}
+                            />
+                            <MuiFormControlLabel
+                                value="card"
+                                control={<Radio size="small" sx={{ color: "rgba(255,255,255,0.6)", "&.Mui-checked": { color: "#FF7A00" } }} />}
+                                label={<Typography sx={{ fontSize: 13, color: "white", fontWeight: 600 }}>{b.paymentCardAtDoor}</Typography>}
+                            />
+                        </RadioGroup>
+                    </>
+                )}
+
                 {isToGoAdmin && (
-                    <TextField
-                        fullWidth
-                        size="small"
+                    <DarkTextField
                         label={b.email}
                         placeholder={b.emailPlaceholder}
                         value={customerEmail}
-                        onChange={(e) => setCustomerEmail(e.target.value)}
-                        error={customerEmail.length > 0 && !isValidEmail}
-                        helperText={
-                            customerEmail.length > 0 && !isValidEmail
-                                ? b.emailError
-                                : b.emailHelper
-                        }
-                        sx={{
-                            mb: 1.5,
-                            "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.75)" },
-                            "& .MuiFormHelperText-root": {
-                                color: customerEmail.length > 0 && !isValidEmail ? "#ffb4b4" : "rgba(255,255,255,0.65)",
-                                mx: 0.5,
-                            },
-                            "& .MuiOutlinedInput-root": {
-                                borderRadius: 2.5,
-                                color: "white",
-                                bgcolor: "rgba(255,255,255,0.04)",
-                                "& .MuiOutlinedInput-notchedOutline": {
-                                    borderColor: customerEmail.length > 0 && !isValidEmail
-                                        ? "rgba(255,120,120,0.9)"
-                                        : "rgba(255,255,255,0.18)",
-                                },
-                                "&:hover .MuiOutlinedInput-notchedOutline": {
-                                    borderColor: customerEmail.length > 0 && !isValidEmail
-                                        ? "rgba(255,120,120,1)"
-                                        : "rgba(255,255,255,0.30)",
-                                },
-                            },
-                        }}
+                        onChange={handleEmailChange}
+                        hasError={customerEmail.length > 0 && !isValidEmail}
+                        helperText={customerEmail.length > 0 && !isValidEmail ? b.emailError : b.emailHelper}
                     />
                 )}
 
@@ -420,7 +562,7 @@ export const Basket = () => {
                         value={canChooseTable ? selectedTableId : (qrTableId ?? "")}
                         label={b.table}
                         disabled={!canChooseTable}
-                        onChange={(e) => canChooseTable && setSelectedTableId(e.target.value)}
+                        onChange={handleTableChange}
                         sx={{
                             borderRadius: 2.5,
                             color: "white",
@@ -431,20 +573,7 @@ export const Basket = () => {
                         }}
                         MenuProps={{ PaperProps: { sx: { borderRadius: 2, mt: 1 } } }}
                     >
-                        {canChooseTable
-                            ? tables.map((t) => (
-                                <MuiMenuItem key={t.id} value={t.id}>
-                                    {t.name ? `${t.name} (${t.id})` : t.id}
-                                </MuiMenuItem>
-                            ))
-                            : qrTableId
-                                ? (() => {
-                                    const found = tables.find((t) => t.id === qrTableId);
-                                    const label = found?.name ? `${found.name} (${qrTableId})` : qrTableId;
-                                    return [<MuiMenuItem key={qrTableId} value={qrTableId}>{label}</MuiMenuItem>];
-                                })()
-                                : [<MuiMenuItem key="" value="">{b.tableNotFound}</MuiMenuItem>]
-                        }
+                        {tableMenuItems}
                     </Select>
                 </FormControl>
 
@@ -458,8 +587,8 @@ export const Basket = () => {
                     fullWidth
                     variant="contained"
                     disableElevation
-                    disabled={isExpired || !isOrder || mergedItems.length === 0 || (canChooseTable && !selectedTableId)}
-                    onClick={() => setConfirmOpen(true)}
+                    disabled={isSendDisabled}
+                    onClick={handleConfirmOpen}
                     sx={{
                         borderRadius: 999,
                         textTransform: "none",
@@ -478,38 +607,16 @@ export const Basket = () => {
                 </Button>
             </Box>
 
+            {/* ─── Confirm dialog ─── */}
             <ConfirmDialog
                 open={confirmOpen}
-                title={(() => {
-                    const highlight = b.confirmTitleHighlight;
-                    const parts = b.confirmTitle.split(highlight);
-                    return (
-                        <>
-                            {parts[0]}
-                            <Box
-                                component="span"
-                                sx={{ color: "error.main", fontSize: "1.3em", fontWeight: 900 }}
-                            >
-                                {highlight}
-                            </Box>
-                            {parts[1]}
-                        </>
-                    );
-                })()}
+                title={confirmTitle}
                 description={b.confirmDesc(total)}
                 confirmText={b.confirmYes}
                 cancelText={b.confirmNo}
                 busy={confirmBusy}
-                onClose={() => setConfirmOpen(false)}
-                onConfirm={async () => {
-                    setConfirmBusy(true);
-                    try {
-                        await sendOrder();
-                        setConfirmOpen(false);
-                    } finally {
-                        setConfirmBusy(false);
-                    }
-                }}
+                onClose={handleConfirmClose}
+                onConfirm={handleConfirm}
             >
                 <Box sx={{ mt: 1.5 }}>
                     {mergedItems.map((item, index) => (
@@ -534,11 +641,23 @@ export const Basket = () => {
                                 )}
                             </Typography>
                             <Typography sx={{ fontSize: 13.5, fontWeight: 700, ml: 2, whiteSpace: "nowrap" }}>
-                                {(item.unitPrice * (item.qty ?? 1))} TL
+                                {item.unitPrice * (item.qty ?? 1)} TL
                             </Typography>
                         </Box>
                     ))}
                 </Box>
+
+                <Typography variant="caption" sx={{ color: "text.secondary", mt: 2, display: "block", lineHeight: 1.6 }}>
+                    Siparişi onaylayarak{" "}
+                    <Box component="a" href="/kullanim-kosullari" target="_blank" sx={{ color: "primary.main", textDecoration: "underline" }}>
+                        Kullanım Koşulları
+                    </Box>
+                    'nı ve{" "}
+                    <Box component="a" href="/gizlilik-politikasi" target="_blank" sx={{ color: "primary.main", textDecoration: "underline" }}>
+                        Gizlilik Politikası
+                    </Box>
+                    'nı kabul etmiş sayılırsınız.
+                </Typography>
             </ConfirmDialog>
         </Box>
     );

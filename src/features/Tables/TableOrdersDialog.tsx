@@ -27,12 +27,12 @@ import { useTheme, useMediaQuery } from "@mui/material";
 import { ref, remove, update, get } from "firebase/database";
 import { db } from "../../firebase/firebase";
 
-import type {
-    OrdersMap,
-    SelectedTable,
-    ConfirmState,
-    SelectionKey,
-    OrderItem,
+import {
+    type OrdersMap,
+    type SelectedTable,
+    type ConfirmState,
+    type SelectionKey,
+    type OrderItem, handlePrintAllOrders,
 } from "./utils";
 
 import { fmtDate } from "./utils/orderFormat";
@@ -86,6 +86,7 @@ export const TableOrdersDialog = ({
     const [selected, setSelected] = useState<Record<string, true>>({});
     const [selectAll, setSelectAll] = useState(false);
     const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+    const [printingAll, setPrintingAll] = useState(false);
     const [printAgentReady, setPrintAgentReady] = useState<boolean>(false);
     const [printerSettingsOpen, setPrinterSettingsOpen] = useState(false);
 
@@ -189,6 +190,7 @@ export const TableOrdersDialog = ({
                     qty,
                     note: it.note ?? "",
                     lineTotal: unit * qty,
+                    selectedOptions: Array.isArray(it.selectedOptions) ? it.selectedOptions : undefined,
                 };
             });
 
@@ -200,6 +202,9 @@ export const TableOrdersDialog = ({
                 body: JSON.stringify({
                     orderId: o.orderId,
                     tableName: table?.name || "Masa",
+                    customerName: (o as any).customerName || null,
+                    customerPhone: (o as any).customerPhone || null,
+                    paymentMethod: (o as any).paymentMethod || null,
                     items,
                     total,
                 }),
@@ -319,7 +324,6 @@ export const TableOrdersDialog = ({
         <>
             <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
 
-                {/* ── DialogTitle: Sol masa adı | Sağ butonlar ── */}
                 <DialogTitle sx={{ p: 0 }}>
                     <Stack
                         direction="row"
@@ -327,7 +331,6 @@ export const TableOrdersDialog = ({
                         justifyContent="space-between"
                         sx={{ px: 3, py: 1.5 }}
                     >
-                        {/* Sol: Masa adı + Genel Toplam */}
                         <Stack direction="row" alignItems="center" spacing={2}>
                             <Typography sx={{ fontWeight: 900, fontSize: 18 }} noWrap>
                                 {table ? `${table.name} — Siparişler` : "Siparişler"}
@@ -339,8 +342,34 @@ export const TableOrdersDialog = ({
                             />
                         </Stack>
 
-                        {/* Sağ: Yazıcı Ayarları + Reset */}
                         <Stack direction="row" spacing={1} alignItems="center">
+                            <Tooltip title="Masanın tüm siparişlerini tek kağıtta yazdır">
+                                <span>
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={<PrintIcon />}
+                                        disabled={
+                                            !printAgentReady ||
+                                            printingAll ||
+                                            ordersList.length === 0
+                                        }
+                                        onClick={() =>
+                                            handlePrintAllOrders({
+                                                ordersList,
+                                                table,
+                                                printAgentReady,
+                                                printingAll,
+                                                setPrintingAll,
+                                            })
+                                        }
+                                        sx={{ fontWeight: 800, borderRadius: 999 }}
+                                    >
+                                        {printingAll ? "Yazdırılıyor..." : "Tümünü Yazdır"}
+                                    </Button>
+                                </span>
+                            </Tooltip>
+
                             <Button
                                 variant="outlined"
                                 size="small"
@@ -422,7 +451,6 @@ export const TableOrdersDialog = ({
                             >
                                 <Stack spacing={1.25}>
 
-                                    {/* ── Tümünü Seç + Seçilenleri Sil — liste başı ── */}
                                     <Stack
                                         direction="row"
                                         alignItems="center"
@@ -555,12 +583,49 @@ export const TableOrdersDialog = ({
                                                     </Stack>
                                                 </Stack>
 
-                                                <Typography
-                                                    variant="caption"
-                                                    sx={{ color: "text.secondary" }}
-                                                >
-                                                    {fmtDate(o.createdAtMs)}
-                                                </Typography>
+                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+                                                    <Typography
+                                                        variant="caption"
+                                                        sx={{ color: "text.secondary" }}
+                                                    >
+                                                        {fmtDate(o.createdAtMs)}
+                                                    </Typography>
+                                                    {(o as any).customerName && (
+                                                        <Typography
+                                                            variant="caption"
+                                                            sx={{ color: "text.secondary", fontWeight: 700 }}
+                                                        >
+                                                            👤 {(o as any).customerName}
+                                                        </Typography>
+                                                    )}
+                                                    {(o as any).customerPhone && (
+                                                        <Typography
+                                                            variant="caption"
+                                                            sx={{ color: "text.secondary", fontWeight: 700 }}
+                                                        >
+                                                            📞 {(o as any).customerPhone}
+                                                        </Typography>
+                                                    )}
+                                                    {(o as any).paymentMethod && (
+                                                        <Chip
+                                                            size="small"
+                                                            label={(o as any).paymentMethod === "cash" ? "💵 Kapıda Nakit" : "💳 Kapıda Kart"}
+                                                            sx={{
+                                                                fontWeight: 700,
+                                                                fontSize: 11,
+                                                                height: 20,
+                                                                bgcolor: (o as any).paymentMethod === "cash"
+                                                                    ? "rgba(76,175,80,0.12)"
+                                                                    : "rgba(33,150,243,0.12)",
+                                                                color: (o as any).paymentMethod === "cash" ? "success.main" : "info.main",
+                                                                border: "1px solid",
+                                                                borderColor: (o as any).paymentMethod === "cash"
+                                                                    ? "rgba(76,175,80,0.3)"
+                                                                    : "rgba(33,150,243,0.3)",
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Box>
 
                                                 <Divider />
 
@@ -696,9 +761,7 @@ export const TableOrdersDialog = ({
                                                                             sx={{ fontWeight: 800 }}
                                                                             noWrap
                                                                         >
-                                                                            {it.title ??
-                                                                                it.productId ??
-                                                                                "Ürün"}
+                                                                            {it.title ?? it.productId ?? "Ürün"}
                                                                         </Typography>
                                                                         <Typography
                                                                             variant="caption"
@@ -709,6 +772,27 @@ export const TableOrdersDialog = ({
                                                                                 ? it.note
                                                                                 : "Yok"}
                                                                         </Typography>
+
+                                                                        {/* selectedOptions chip'leri */}
+                                                                        {(it as any).selectedOptions?.length > 0 && (
+                                                                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
+                                                                                {((it as any).selectedOptions as string[]).map((label: string) => (
+                                                                                    <Chip
+                                                                                        key={label}
+                                                                                        label={label}
+                                                                                        size="small"
+                                                                                        sx={{
+                                                                                            height: 18,
+                                                                                            fontSize: 11,
+                                                                                            fontWeight: 600,
+                                                                                            bgcolor: "rgba(100,200,100,0.12)",
+                                                                                            color: "success.main",
+                                                                                            border: "1px solid rgba(100,200,100,0.3)",
+                                                                                        }}
+                                                                                    />
+                                                                                ))}
+                                                                            </Box>
+                                                                        )}
                                                                     </Box>
                                                                 </Stack>
 
@@ -819,9 +903,7 @@ export const TableOrdersDialog = ({
                                                                         sx={{ fontWeight: 800 }}
                                                                         noWrap
                                                                     >
-                                                                        {x.item.title ??
-                                                                            x.item.productId ??
-                                                                            "Ürün"}
+                                                                        {x.item.title ?? x.item.productId ?? "Ürün"}
                                                                     </Typography>
                                                                     <Typography
                                                                         variant="caption"
@@ -834,6 +916,27 @@ export const TableOrdersDialog = ({
                                                                                 : "Yok"
                                                                         }`}
                                                                     </Typography>
+
+                                                                    {/* selectedOptions chip'leri */}
+                                                                    {(x.item as any).selectedOptions?.length > 0 && (
+                                                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
+                                                                            {((x.item as any).selectedOptions as string[]).map((label: string) => (
+                                                                                <Chip
+                                                                                    key={label}
+                                                                                    label={label}
+                                                                                    size="small"
+                                                                                    sx={{
+                                                                                        height: 18,
+                                                                                        fontSize: 11,
+                                                                                        fontWeight: 600,
+                                                                                        bgcolor: "rgba(100,200,100,0.12)",
+                                                                                        color: "success.main",
+                                                                                        border: "1px solid rgba(100,200,100,0.3)",
+                                                                                    }}
+                                                                                />
+                                                                            ))}
+                                                                        </Box>
+                                                                    )}
                                                                 </Box>
                                                             </Stack>
 

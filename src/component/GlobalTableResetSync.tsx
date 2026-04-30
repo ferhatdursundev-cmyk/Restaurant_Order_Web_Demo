@@ -3,12 +3,11 @@ import { onValue, off, ref } from "firebase/database";
 import { db } from "../firebase/firebase";
 import { clearCart, useAppDispatch } from "../store";
 
+const LOCAL_ONLY_TABLES = ["t1001", "t1002"];
+
 function getTableId(): string | null {
-    // Önce URL'den dene
     const match = window.location.pathname.match(/\/t\/([^/]+)/);
     if (match) return match[1];
-
-    // Sonra localStorage'dan
     return localStorage.getItem("activeTableId");
 }
 
@@ -22,6 +21,9 @@ export function GlobalTableResetSync() {
 
             const tableId = getTableId();
             if (!tableId) return;
+
+            // Local-only masalar için Firebase reset sinyali dinleme
+            if (LOCAL_ONLY_TABLES.includes(tableId)) return;
 
             const dbRef = ref(db, `tableCartSignals/${tableId}/lastResetAt`);
             let isFirst = true;
