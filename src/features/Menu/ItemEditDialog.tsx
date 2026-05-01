@@ -6,7 +6,7 @@ import {
     Typography,
     Autocomplete,
 } from "@mui/material";
-import { ConfirmDialog, TranslatedTitleField, type TitlesByLang, type LangCode, EMPTY_TITLES  } from "../../component";
+import { ConfirmDialog, TranslatedTitleField, type TitlesByLang, type LangCode  } from "../../component";
 import { ImageUploadField } from "./ImageUploadField";
 import { OptionsCatalogField, type OptionItem } from "./OptionsCatalogField";
 import { parseCatalog } from "./utils/Optionscatalogutils";
@@ -15,6 +15,7 @@ import { ref as rtdbRef, update, get } from "firebase/database";
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useAppDispatch, show as showNotify } from "../../store";
 import { useAllergenMap } from "../../utils";
+import {EMPTY_TITLES} from "../../type/translatedField.constants.ts";
 
 const VALID_ALLERGEN_CODES = new Set([
     "A","Aa","Ab","Ac","Ad","Ae","Af",
@@ -30,6 +31,7 @@ export type EditableItem = {
     title: string;
     price: number;
     image?: string;
+    ingredients?: Record<string, string>;
     allergens?: string[];
     optionsCatalog?: Record<string, unknown>;
     translations?: Record<string, { title?: string; description?: string }>;
@@ -60,6 +62,7 @@ export const ItemEditDialog = ({ open, item, onClose }: Props) => {
     const [allergens,      setAllergens]       = useState<string[]>([]);
     const [priceError,     setPriceError]      = useState("");
     const [busy,           setBusy]            = useState(false);
+    const [ingredients,    setIngredients]     = useState<TitlesByLang>(EMPTY_TITLES);
     const [imageFile,      setImageFile]       = useState<File | null>(null);
     const [imagePreview,   setImagePreview]    = useState<string | null>(null);
     const [uploadProgress, setUploadProgress]  = useState<number | null>(null);
@@ -77,6 +80,12 @@ export const ItemEditDialog = ({ open, item, onClose }: Props) => {
         setPrice(String(item.price));
         setAllergens(item.allergens ?? []);
         setPriceError("");
+        setIngredients({
+            tr: item.ingredients?.tr ?? "",
+            de: item.ingredients?.de ?? "",
+            en: item.ingredients?.en ?? "",
+            ru: item.ingredients?.ru ?? "",
+        });
         setImageFile(null);
         setImagePreview(item.image ?? null);
         setUploadProgress(null);
@@ -86,6 +95,10 @@ export const ItemEditDialog = ({ open, item, onClose }: Props) => {
     const handleTitleChange = useCallback((lang: LangCode, value: string) => {
         setTitles((prev) => ({ ...prev, [lang]: value }));
         setTitleErrors((prev) => ({ ...prev, [lang]: undefined }));
+    }, []);
+
+    const handleIngredientsChange = useCallback((lang: LangCode, value: string) => {
+        setIngredients((prev) => ({ ...prev, [lang]: value }));
     }, []);
 
     const handleFile = useCallback((file: File) => {
@@ -129,7 +142,6 @@ export const ItemEditDialog = ({ open, item, onClose }: Props) => {
     const handleSave = useCallback(async () => {
         if (!item) return;
 
-        // Türkçe zorunlu, diğerleri opsiyonel
         if (!titles.tr.trim()) {
             setTitleErrors((prev) => ({ ...prev, tr: "Türkçe ad zorunludur." }));
             return;
@@ -149,7 +161,6 @@ export const ItemEditDialog = ({ open, item, onClose }: Props) => {
 
         setBusy(true);
         try {
-            // Unique title kontrolu — kendi key'i haric ayni isimde urun olmamali
             const snap = await get(rtdbRef(db, `menu/${item.segKey}`));
             if (snap.exists()) {
                 const existing = snap.val() as Record<string, { title?: string }>;
@@ -170,10 +181,18 @@ export const ItemEditDialog = ({ open, item, onClose }: Props) => {
                 imageUrl  = await uploadImage(imageFile, `menu/${item.segKey}/${item.key}.${ext}`);
             }
 
+            const ingredientsMap: Record<string, string | null> = {
+                "ingredients/tr": ingredients.tr.trim() || null,
+                "ingredients/de": ingredients.de.trim() || null,
+                "ingredients/en": ingredients.en.trim() || null,
+                "ingredients/ru": ingredients.ru.trim() || null,
+            };
+
             const payload: Record<string, unknown> = {
                 title:     titles.tr.trim(),
                 price:     parsedPrice,
                 allergens: allergens.length > 0 ? allergens : [],
+                ...ingredientsMap,
                 "translations/tr/title": titles.tr.trim(),
                 "translations/de/title": titles.de.trim(),
                 "translations/en/title": titles.en.trim(),
@@ -191,7 +210,7 @@ export const ItemEditDialog = ({ open, item, onClose }: Props) => {
             setBusy(false);
             setUploadProgress(null);
         }
-    }, [item, titles, price, allergens, imageFile, uploadImage, dispatch, onClose]);
+    }, [item, titles, price, allergens, ingredients, imageFile, uploadImage, dispatch, onClose]);
 
     const handleClose = useCallback(() => { if (!busy) onClose(); }, [busy, onClose]);
 
@@ -231,6 +250,20 @@ export const ItemEditDialog = ({ open, item, onClose }: Props) => {
                     helperText={priceError}
                     inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
                 />
+
+                <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1, color: "text.secondary" }}>
+                        İçindekiler
+                    </Typography>
+                    <TranslatedTitleField
+                        values={ingredients}
+                        onChange={handleIngredientsChange}
+                        disabled={busy}
+                        multiline
+                        minRows={2}
+                        placeholder="Örn: un, su, tuz, maya, zeytinyağı..."
+                    />
+                </Box>
 
                 <Box>
                     <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1, color: "text.secondary" }}>
