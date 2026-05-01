@@ -1,6 +1,15 @@
 import { createContext, useContext, useState, useCallback, type ReactNode, createElement } from "react";
 
 export type Lang = "de" | "tr" | "ru" | "en";
+interface LanguageContextValue {
+    lang: Lang;
+    setLang: (l: Lang) => void;
+    t: Translations;
+}
+export type ItemTranslations = {
+    title?: string;
+    description?: string;
+};
 
 export const LANGUAGES: { code: Lang; label: string; flag: string }[] = [
     { code: "de", label: "Deutsch", flag: "🇩🇪" },
@@ -8,8 +17,6 @@ export const LANGUAGES: { code: Lang; label: string; flag: string }[] = [
     { code: "ru", label: "Русский", flag: "🇷🇺" },
     { code: "en", label: "English", flag: "🇬🇧" },
 ];
-
-// translations
 
 export type Translations = typeof de;
 
@@ -20,6 +27,7 @@ const de = {
         noImage: "Kein Bild",
         noAllergen: "Kein Allergen",
         allergyInfo: "Allergie",
+        ingredients: "Zutaten",
         addToCart: "In den Warenkorb",
         noItems: "Keine Produkte in dieser Kategorie.",
         locationChecking: "Standort wird überprüft...",
@@ -66,6 +74,7 @@ const de = {
             sicak_icecekler: "Warme Getränke",
         }
     },
+
     // Basket UI
     basket: {
         title: "Warenkorb",
@@ -132,6 +141,7 @@ const tr: Translations = {
         noImage: "Görsel yok",
         noAllergen: "Alerji yok",
         allergyInfo: "Alerji",
+        ingredients: "İçindekiler",
         addToCart: "Sepete ekle",
         noItems: "Bu kategoride ürün yok.",
         locationChecking: "Konum kontrol ediliyor...",
@@ -243,6 +253,7 @@ const ru: Translations = {
         noImage: "Нет фото",
         noAllergen: "Без аллергенов",
         allergyInfo: "Аллергия",
+        ingredients: "Состав",
         addToCart: "В корзину",
         noItems: "В этой категории нет продуктов.",
         locationChecking: "Проверка местоположения...",
@@ -354,6 +365,7 @@ const en: Translations = {
         noImage: "No Image",
         noAllergen: "No allergens",
         allergyInfo: "Allergy",
+        ingredients: "Ingredients",
         addToCart: "Add to cart",
         noItems: "No products in this category.",
         locationChecking: "Checking location...",
@@ -461,14 +473,6 @@ const en: Translations = {
 
 export const TRANSLATION_MAP: Record<Lang, Translations> = { de, tr, ru, en };
 
-// ─── Context ─────────────────────────────────────────────────────────────────
-
-interface LanguageContextValue {
-    lang: Lang;
-    setLang: (l: Lang) => void;
-    t: Translations;
-}
-
 const LanguageContext = createContext<LanguageContextValue>({
     lang: "de",
     setLang: () => {},
@@ -507,12 +511,6 @@ export function useLanguage() {
 }
 
 // ─── Helper: get localized field from a menu item ────────────────────────────
-
-export type ItemTranslations = {
-    title?: string;
-    description?: string;
-};
-
 export function getLocalizedField(
     item: { title?: string; description?: string; translations?: Record<string, ItemTranslations> },
     field: keyof ItemTranslations,
