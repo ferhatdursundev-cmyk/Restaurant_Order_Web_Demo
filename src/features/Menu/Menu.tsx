@@ -41,6 +41,7 @@ type MenuItem = {
     price: number;
     image?: string;
     description?: string;
+    ingredients?: Record<string, string>;
     allergens?: string[];
     optionsCatalog?: Record<string, unknown>;
     translations?: Record<string, ItemTranslations>;
@@ -268,15 +269,15 @@ export const Menu = () => {
 
     const handleOpenEditDialog = useCallback((
         segKey: string,
-        item: { key: string; title: string; price: number; image?: string; allergens?: string[]; translations?: Record<string, { title?: string; description?: string }> }
+        item: { key: string; title: string; price: number; image?: string; ingredients?: Record<string, string>; allergens?: string[]; translations?: Record<string, { title?: string; description?: string }> }
     ) => {
-        setEditItem({ key: item.key, segKey, title: item.title, price: item.price, image: item.image, allergens: item.allergens, translations: item.translations });
+        setEditItem({ key: item.key, segKey, title: item.title, price: item.price, image: item.image, ingredients: item.ingredients, allergens: item.allergens, translations: item.translations });
         setEditDialogOpen(true);
     }, []);
 
     const handleCloseEditDialog = useCallback(() => { setEditDialogOpen(false); setEditItem(null); }, []);
 
-     const handleOpenAddDialog = useCallback((segKey: string, label: string) => {
+    const handleOpenAddDialog = useCallback((segKey: string, label: string) => {
         setAddSegKey(segKey);
         setAddCategoryLabel(label);
         setAddDialogOpen(true);
@@ -332,7 +333,7 @@ export const Menu = () => {
                 }}
             >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                       {user?.isAdmin && (
+                    {user?.isAdmin && (
                         <Box
                             onClick={() => setManageCatsOpen(true)}
                             sx={{
@@ -425,6 +426,7 @@ export const Menu = () => {
                                 <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))", xl: "repeat(4, minmax(0, 1fr))" } }}>
                                     {list.map((item) => {
                                         const localTitle = getLocalizedField(item, "title", lang) || item.title;
+                                        const localIngredients = item.ingredients?.[lang] || item.ingredients?.tr || null;
                                         return (
                                             <Card
                                                 key={item.key}
@@ -466,7 +468,7 @@ export const Menu = () => {
                                                     {user?.isAdmin && (
                                                         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                                             <Box sx={{ display: "flex", gap: 0.5 }}>
-                                                                <IconButton size="small" onClick={() => handleOpenEditDialog(key, { key: item.key, title: item.title, price: item.price, image: item.image, allergens: item.allergens, translations: item.translations })} sx={{ color: "#FF7A00" }}>
+                                                                <IconButton size="small" onClick={() => handleOpenEditDialog(key, { key: item.key, title: item.title, price: item.price, image: item.image, ingredients: item.ingredients, allergens: item.allergens, translations: item.translations })} sx={{ color: "#FF7A00" }}>
                                                                     <EditIcon fontSize="small" />
                                                                 </IconButton>
                                                                 <IconButton size="small" onClick={() => handleOpenDeleteDialog(key, item.key, item.title, item.image)} sx={{ color: "error.main" }}>
@@ -486,6 +488,13 @@ export const Menu = () => {
                                                     )}
 
                                                     <Box sx={{ display: "flex", flexDirection: "column", mt: 0.5, gap: 1 }}>
+                                                        {localIngredients && (
+                                                            <Typography sx={{ fontSize: 12, color: "text.secondary", lineHeight: 1.5 }}>
+                                                                <Box component="span" sx={{ fontWeight: 700 }}>İçindekiler: </Box>
+                                                                {localIngredients}
+                                                            </Typography>
+                                                        )}
+
                                                         <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ alignItems: "center" }}>
                                                             <span>{m.allergyInfo}:</span>
                                                             {item.allergens?.length ? (
