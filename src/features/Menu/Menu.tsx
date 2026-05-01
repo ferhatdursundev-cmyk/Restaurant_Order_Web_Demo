@@ -332,7 +332,7 @@ export const Menu = () => {
                 }}
             >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    {/*    {user?.isAdmin && (
+                       {user?.isAdmin && (
                         <Box
                             onClick={() => setManageCatsOpen(true)}
                             sx={{
@@ -346,7 +346,6 @@ export const Menu = () => {
                             <Typography sx={{ color: "white", fontWeight: 900, fontSize: 20, lineHeight: 1 }}>+</Typography>
                         </Box>
                     )}
-                    */}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                         {categories.length > 0 && activeSeg && (
                             <CustomSegment value={activeSeg} onChange={handleSegmentClick} items={categories} />
@@ -403,7 +402,7 @@ export const Menu = () => {
                                 <Typography variant="h6" sx={{ fontWeight: 900, fontSize: { xs: 18, md: 20 } }}>
                                     {label}
                                 </Typography>
-                                {/*  {user?.isAdmin && (
+                                {user?.isAdmin && (
                                     <Box
                                         onClick={() => handleOpenAddDialog(key, label)}
                                         sx={{
@@ -417,7 +416,7 @@ export const Menu = () => {
                                         <Typography sx={{ color: "white", fontWeight: 900, fontSize: 20, lineHeight: 1 }}>+</Typography>
                                     </Box>
                                 )}
-                                */}
+
                             </Box>
 
                             {list.length === 0 && <Alert severity="info">{m.noItems}</Alert>}
