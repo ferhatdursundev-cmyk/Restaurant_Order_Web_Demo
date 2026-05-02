@@ -282,7 +282,6 @@ export const Menu = () => {
         setAddCategoryLabel(label);
         setAddDialogOpen(true);
     }, []);
-    console.log(handleOpenAddDialog)
 
     const handleCloseAddDialog = useCallback(() => setAddDialogOpen(false), []);
 
@@ -490,7 +489,7 @@ export const Menu = () => {
                                                     <Box sx={{ display: "flex", flexDirection: "column", mt: 0.5, gap: 1 }}>
                                                         {localIngredients && (
                                                             <Typography sx={{ fontSize: 12, color: "text.secondary", lineHeight: 1.5 }}>
-                                                                <Box component="span" sx={{ fontWeight: 700 }}>İçindekiler: </Box>
+                                                                <Box component="span" sx={{ fontWeight: 700 }}><span>{m.ingredients}:</span></Box>
                                                                 {localIngredients}
                                                             </Typography>
                                                         )}

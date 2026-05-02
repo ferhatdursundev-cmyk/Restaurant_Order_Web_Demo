@@ -10,12 +10,13 @@ import {
     AboutUs,
     ToGoPage,
     TermsOfService,
-    PrivacyPolicy
+    PrivacyPolicy,
+    ReservationPage, ReservationAdminPanel, ReservationVerifyPage
 } from "./features";
 import { Box } from "@mui/material";
 import {
     GlobalNotify, IsOrderSync, GlobalTableSubmissionSync, GlobalTableCartSync, GlobalTableResetSync,
-    GlobalTableSessionGuard
+    GlobalTableSessionGuard, GlobalReservationAlarm
 } from "./component";
 import { GlobalAutoPrint } from "./component/GlobalAutoPrint";
 import {GlobalOrderAlarm, initActiveTableTTL} from "./utils";
@@ -39,6 +40,7 @@ export default function App() {
         <BrowserRouter>
             <IsOrderSync />
             <GlobalOrderAlarm />
+            {isAdmin && <GlobalReservationAlarm />}
             {isAdmin && <GlobalAutoPrint />}
             <GlobalTableCartSync />
             <GlobalTableSubmissionSync />
@@ -52,7 +54,7 @@ export default function App() {
                 }}
             >
                 <Box sx={{ position: "sticky", top: 0, zIndex: 1200, bgcolor: "background.default" }}>
-                    <Header title="QR MENU DEMO" />
+                    <Header title="SERCAN ATES FIRINI" />
                 </Box>
 
                 <GlobalNotify />
@@ -66,6 +68,16 @@ export default function App() {
                         <Route path="/kullanim-kosullari" element={<TermsOfService />} />
                         <Route path="/gizlilik-politikasi" element={<PrivacyPolicy />} />
                         <Route path="/t/:tableId" element={<Menu />} />
+                        <Route path="/rezervasyon" element={<ReservationPage />} />
+                        <Route path="/rezervasyon/verify" element={<ReservationVerifyPage />} />
+                        <Route
+                            path="/admin/rezervasyonlar"
+                            element={
+                                <ProtectedRoute allowedRoles={["admin"]}>
+                                    <ReservationAdminPanel />
+                                </ProtectedRoute>
+                            }
+                        />
                         <Route
                             path="/tables"
                             element={
