@@ -12,13 +12,20 @@ import {
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import { useLanguage } from "../../i18n";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type VerifyState =
     | { status: "loading" }
     | { status: "success" }
     | { status: "error"; message: string };
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export const ReservationVerifyPage: React.FC = () => {
+    const { t }          = useLanguage();
+    const r              = t.reservation;
     const [searchParams] = useSearchParams();
     const navigate       = useNavigate();
 
@@ -26,11 +33,12 @@ export const ReservationVerifyPage: React.FC = () => {
 
     const [verifyState, setVerifyState] = useState<VerifyState>({ status: "loading" });
 
-    //Verify on mount
+    // ── Verify on mount ────────────────────────────────────────────────────────
+
     useEffect(() => {
         const verify = async () => {
             if (!token) {
-                setVerifyState({ status: "error", message: "Geçersiz veya eksik doğrulama linki." });
+                setVerifyState({ status: "error", message: r.verifyExpired });
                 return;
             }
 
@@ -43,18 +51,22 @@ export const ReservationVerifyPage: React.FC = () => {
                 if (data.ok) {
                     setVerifyState({ status: "success" });
                 } else {
-                    setVerifyState({ status: "error", message: data.error || "Doğrulama başarısız." });
+                    setVerifyState({ status: "error", message: data.error || r.verifyExpired });
                 }
             } catch {
-                setVerifyState({ status: "error", message: "Sunucuya ulaşılamadı. Lütfen tekrar deneyin." });
+                setVerifyState({ status: "error", message: r.submitError });
             }
         };
 
         verify();
-    }, [token]);
+    }, [token, r]);
+
+    // ── Callbacks ──────────────────────────────────────────────────────────────
 
     const handleGoHome         = useCallback(() => navigate("/"), [navigate]);
     const handleNewReservation = useCallback(() => navigate("/rezervasyon"), [navigate]);
+
+    // ── Render ─────────────────────────────────────────────────────────────────
 
     return (
         <Container maxWidth="sm" sx={{ py: 8 }}>
@@ -67,9 +79,9 @@ export const ReservationVerifyPage: React.FC = () => {
                 {verifyState.status === "loading" && (
                     <Stack spacing={3} alignItems="center">
                         <CircularProgress size={64} color="warning" />
-                        <Typography variant="h5" fontWeight={700}>Doğrulanıyor...</Typography>
+                        <Typography variant="h5" fontWeight={700}>{r.verifying}</Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Lütfen bekleyin, rezervasyonunuz işleme alınıyor.
+                            {r.verifyingDesc}
                         </Typography>
                     </Stack>
                 )}
@@ -78,23 +90,21 @@ export const ReservationVerifyPage: React.FC = () => {
                 {verifyState.status === "success" && (
                     <Stack spacing={2} alignItems="center">
                         <CheckCircleOutlineIcon sx={{ fontSize: 72, color: "success.main" }} />
-                        <Typography variant="h5" fontWeight={700}>E-posta Doğrulandı!</Typography>
+                        <Typography variant="h5" fontWeight={700}>{r.verified}</Typography>
                         <Typography variant="body1" color="text.secondary">
-                            Rezervasyon talebiniz başarıyla işleme alındı.
-                            En kısa sürede size geri dönüş yapacağız.
+                            {r.verifiedDesc}
                         </Typography>
                         <Alert severity="info" sx={{ textAlign: "left", width: "100%" }}>
-                            Rezervasyonunuz şu an <strong>incelemede</strong>. Onay veya red durumunda
-                            e-posta adresinize bilgilendirme yapılacaktır.
+                            {r.verifiedInfo}
                         </Alert>
                         <Stack direction="row" spacing={2} pt={1}>
-                            <Button variant="outlined" onClick={handleGoHome}>Ana Sayfa</Button>
+                            <Button variant="outlined" onClick={handleGoHome}>{r.home}</Button>
                             <Button
                                 variant="contained"
                                 startIcon={<CalendarMonthIcon />}
                                 onClick={handleNewReservation}
                             >
-                                Yeni Rezervasyon
+                                {r.newReservation}
                             </Button>
                         </Stack>
                     </Stack>
@@ -104,18 +114,17 @@ export const ReservationVerifyPage: React.FC = () => {
                 {verifyState.status === "error" && (
                     <Stack spacing={2} alignItems="center">
                         <ErrorOutlineIcon sx={{ fontSize: 72, color: "error.main" }} />
-                        <Typography variant="h5" fontWeight={700}>Doğrulama Başarısız</Typography>
+                        <Typography variant="h5" fontWeight={700}>{r.verifyFailed}</Typography>
                         <Typography variant="body1" color="text.secondary">
                             {verifyState.message}
                         </Typography>
                         <Alert severity="warning" sx={{ textAlign: "left", width: "100%" }}>
-                            Link süresi dolmuş veya daha önce kullanılmış olabilir.
-                            Yeni bir rezervasyon oluşturarak tekrar deneyebilirsiniz.
+                            {r.verifyExpired}
                         </Alert>
                         <Stack direction="row" spacing={2} pt={1}>
-                            <Button variant="outlined" onClick={handleGoHome}>Ana Sayfa</Button>
+                            <Button variant="outlined" onClick={handleGoHome}>{r.home}</Button>
                             <Button variant="contained" onClick={handleNewReservation}>
-                                Yeni Rezervasyon
+                                {r.newReservation}
                             </Button>
                         </Stack>
                     </Stack>
