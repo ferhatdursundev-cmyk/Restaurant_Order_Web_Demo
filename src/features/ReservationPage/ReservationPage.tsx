@@ -19,6 +19,7 @@ import MarkEmailReadIcon from "@mui/icons-material/MarkEmailRead";
 import TableRestaurantIcon from "@mui/icons-material/TableRestaurant";
 import { get, onValue, push, ref } from "firebase/database";
 import { db } from "../../firebase/firebase";
+import { useLanguage } from "../../i18n";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,9 @@ interface TableTileProps {
     isBooked: boolean;
     isSelected: boolean;
     onSelect: (id: string) => void;
+    labelEmpty: string;
+    labelFull: string;
+    labelBooked: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -79,16 +83,12 @@ const TIME_SLOTS = [
     "01:00",
 ];
 
-const LEGEND = [
-    { color: "success.main", label: "Boş" },
-    { color: "error.main",   label: "Dolu" },
-    { color: "primary.main", label: "Seçili" },
-] as const;
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const TableTile = React.memo<TableTileProps>(({ table, isBooked, isSelected, onSelect }) => (
-    <Tooltip title={isBooked ? "Bu masa dolu" : table.name}>
+const TableTile = React.memo<TableTileProps>(({
+                                                  table, isBooked, isSelected, onSelect, labelBooked,
+                                              }) => (
+    <Tooltip title={isBooked ? labelBooked : table.name}>
         <Box
             onClick={() => !isBooked && onSelect(table.id)}
             sx={{
@@ -113,6 +113,9 @@ const TableTile = React.memo<TableTileProps>(({ table, isBooked, isSelected, onS
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const ReservationPage: React.FC = () => {
+    const { t } = useLanguage();
+    const r = t.reservation;
+
     const [form, setForm]                     = useState<ReservationFormData>(INITIAL_FORM);
     const [errors, setErrors]                 = useState<Partial<ReservationFormData>>({});
     const [loading, setLoading]               = useState(false);
@@ -143,7 +146,15 @@ export const ReservationPage: React.FC = () => {
         return TIME_SLOTS.slice(startIdx + 1);
     }, [form.time]);
 
-    // ── Load booked tables (overlap check) ────────────────────────────────────
+    // ── Legend ─────────────────────────────────────────────────────────────────
+
+    const legend = useMemo(() => [
+        { color: "success.main", label: r.tableEmpty },
+        { color: "error.main",   label: r.tableFull },
+        { color: "primary.main", label: r.tableSelected },
+    ], [r]);
+
+    // ── Load booked tables ────────────────────────────────────────────────────
 
     const loadBookedTables = useCallback((date: string, startTime: string, endTime: string) => {
         if (!date || !startTime || !endTime) { setBookedTableIds(new Set()); return; }
@@ -156,11 +167,11 @@ export const ReservationPage: React.FC = () => {
                 }> | null;
                 const booked = new Set<string>();
                 if (val) {
-                    Object.values(val).forEach((r) => {
-                        if (r.date === date && r.status === "confirmed" && r.tableId) {
-                            const rEnd     = r.endTime || r.time;
-                            const overlaps = r.time < endTime && rEnd > startTime;
-                            if (overlaps) booked.add(r.tableId);
+                    Object.values(val).forEach((rv) => {
+                        if (rv.date === date && rv.status === "confirmed" && rv.tableId) {
+                            const rEnd     = rv.endTime || rv.time;
+                            const overlaps = rv.time < endTime && rEnd > startTime;
+                            if (overlaps) booked.add(rv.tableId);
                         }
                     });
                 }
@@ -201,21 +212,18 @@ export const ReservationPage: React.FC = () => {
 
     const validate = useCallback((): boolean => {
         const e: Partial<ReservationFormData> = {};
-        if (!form.customerName.trim())         e.customerName  = "Ad Soyad zorunlu";
-        if (!form.customerEmail.includes("@")) e.customerEmail = "Geçerli e-posta girin";
-        if (!form.phone.trim())                e.phone         = "Telefon zorunlu";
-        if (!form.date)                        e.date          = "Tarih seçin";
-        if (!form.time)                        e.time          = "Başlangıç saati seçin";
-        if (!form.endTime)                     e.endTime       = "Bitiş saati seçin";
-        if (!form.tableId)                     e.tableId       = "Masa seçin";
+        if (!form.customerName.trim())         e.customerName  = r.nameRequired;
+        if (!form.customerEmail.includes("@")) e.customerEmail = r.emailInvalid;
+        if (!form.phone.trim())                e.phone         = r.phoneRequired;
+        if (!form.date)                        e.date          = r.dateRequired;
+        if (!form.time)                        e.time          = r.startTimeRequired;
+        if (!form.endTime)                     e.endTime       = r.endTimeRequired;
+        if (!form.tableId)                     e.tableId       = r.tableRequired;
         setErrors(e);
         return Object.keys(e).length === 0;
-    }, [form]);
+    }, [form, r]);
 
     const handleSubmit = useCallback(async () => {
-        console.log("handleSubmit called, form:", form);
-        const isValid = validate();
-        console.log("isValid:", isValid, "errors:", errors);
         if (!validate()) return;
         setLoading(true);
         setSubmitError(null);
@@ -234,15 +242,13 @@ export const ReservationPage: React.FC = () => {
                 createdAt:     Date.now(),
             });
             setSubmitted(true);
-            console.log("DB URL:", db.app.options.databaseURL);
-            console.log("Ref path:", ref(db, "reservations").toString());
         } catch (err: any) {
             console.error("Reservation submit error:", err);
-            setSubmitError("Rezervasyon gönderilemedi. Lütfen tekrar deneyin.");
+            setSubmitError(r.submitError);
         } finally {
             setLoading(false);
         }
-    }, [form, validate]);
+    }, [form, validate, r]);
 
     const handleReset = useCallback(() => {
         setForm(INITIAL_FORM);
@@ -255,7 +261,7 @@ export const ReservationPage: React.FC = () => {
     const showTablePicker   = useMemo(() => !!(form.date && form.time && form.endTime), [form.date, form.time, form.endTime]);
     const selectedTableName = useMemo(() => tables.find((t) => t.id === form.tableId)?.name, [tables, form.tableId]);
 
-    // ── Email Verification Success Screen ──────────────────────────────────────
+    // ── Success Screen ─────────────────────────────────────────────────────────
 
     if (submitted) {
         return (
@@ -266,15 +272,13 @@ export const ReservationPage: React.FC = () => {
                 }}>
                     <MarkEmailReadIcon sx={{ fontSize: 72, color: "warning.main", mb: 2 }} />
                     <Typography variant="h5" fontWeight={700} gutterBottom>
-                        Mail Kutunuzu Kontrol Edin
+                        {r.checkEmail}
                     </Typography>
                     <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                        <strong>{form.customerEmail}</strong> adresine bir doğrulama linki gönderdik.
+                        {r.checkEmailDesc(form.customerEmail)}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                        Rezervasyonunuzun işleme alınması için lütfen mailinizde gelen
-                        <strong> "Rezervasyonu Onayla"</strong> butonuna tıklayın.
-                        Link <strong>24 saat</strong> geçerlidir.
+                        {r.checkEmailInfo}
                     </Typography>
 
                     <Paper elevation={0} sx={{
@@ -282,19 +286,19 @@ export const ReservationPage: React.FC = () => {
                         bgcolor: "action.hover", textAlign: "left",
                     }}>
                         <Stack spacing={0.5}>
-                            <Typography variant="caption" color="text.secondary">Rezervasyon Özeti</Typography>
-                            <Typography variant="body2"><strong>Tarih:</strong> {form.date}</Typography>
-                            <Typography variant="body2"><strong>Saat:</strong> {form.time} – {form.endTime}</Typography>
-                            <Typography variant="body2"><strong>Masa:</strong> {selectedTableName}</Typography>
-                            <Typography variant="body2"><strong>Kişi:</strong> {form.partySize}</Typography>
+                            <Typography variant="caption" color="text.secondary">{r.reservationSummary}</Typography>
+                            <Typography variant="body2"><strong>{r.date}:</strong> {form.date}</Typography>
+                            <Typography variant="body2"><strong>{r.startTime}:</strong> {form.time} – {form.endTime}</Typography>
+                            <Typography variant="body2"><strong>{r.tableSelection}:</strong> {selectedTableName}</Typography>
+                            <Typography variant="body2"><strong></strong> {r.partySize(form.partySize)}</Typography>
                         </Stack>
                     </Paper>
 
                     <Alert severity="info" sx={{ mb: 3, textAlign: "left" }}>
-                        Mail gelmediyse spam/junk klasörünüzü kontrol edin.
+                        {r.spamHint}
                     </Alert>
 
-                    <Button variant="outlined" onClick={handleReset}>Yeni Rezervasyon</Button>
+                    <Button variant="outlined" onClick={handleReset}>{r.newReservation}</Button>
                 </Paper>
             </Container>
         );
@@ -307,33 +311,33 @@ export const ReservationPage: React.FC = () => {
             <Stack spacing={1} sx={{ mb: 4 }}>
                 <Stack direction="row" alignItems="center" spacing={1.5}>
                     <CalendarMonthIcon color="primary" sx={{ fontSize: 32 }} />
-                    <Typography variant="h4" fontWeight={800}>Rezervasyon</Typography>
+                    <Typography variant="h4" fontWeight={800}>{r.title}</Typography>
                 </Stack>
-                <Typography variant="body2" color="text.secondary">
-                    Masanızı ayırtın, sizi bekliyoruz.
-                </Typography>
+                <Typography variant="body2" color="text.secondary">{r.subtitle}</Typography>
             </Stack>
 
             <Paper elevation={0} sx={{ p: { xs: 3, sm: 4 }, borderRadius: 4, border: "1px solid", borderColor: "divider" }}>
                 <Stack spacing={3}>
 
-                    <Typography variant="overline" color="text.secondary" fontWeight={700}>Kişisel Bilgiler</Typography>
+                    <Typography variant="overline" color="text.secondary" fontWeight={700}>
+                        {r.personalInfo}
+                    </Typography>
 
                     <TextField
-                        label="Ad Soyad" fullWidth value={form.customerName}
+                        label={r.fullName} fullWidth value={form.customerName}
                         onChange={handleChange("customerName")}
                         error={!!errors.customerName} helperText={errors.customerName}
                         autoComplete="name"
                     />
                     <TextField
-                        label="E-posta" fullWidth type="email" value={form.customerEmail}
+                        label={r.email} fullWidth type="email" value={form.customerEmail}
                         onChange={handleChange("customerEmail")}
                         error={!!errors.customerEmail}
-                        helperText={errors.customerEmail || "Doğrulama linki bu adrese gönderilecek"}
+                        helperText={errors.customerEmail || r.emailHelper}
                         autoComplete="email"
                     />
                     <TextField
-                        label="Telefon" fullWidth type="tel" value={form.phone}
+                        label={r.phone} fullWidth type="tel" value={form.phone}
                         onChange={handleChange("phone")}
                         error={!!errors.phone} helperText={errors.phone}
                         autoComplete="tel"
@@ -341,10 +345,12 @@ export const ReservationPage: React.FC = () => {
 
                     <Divider />
 
-                    <Typography variant="overline" color="text.secondary" fontWeight={700}>Rezervasyon Detayları</Typography>
+                    <Typography variant="overline" color="text.secondary" fontWeight={700}>
+                        {r.reservationDetails}
+                    </Typography>
 
                     <TextField
-                        label="Tarih" type="date" fullWidth InputLabelProps={{ shrink: true }}
+                        label={r.date} type="date" fullWidth InputLabelProps={{ shrink: true }}
                         inputProps={{ min: today }} value={form.date}
                         onChange={handleChange("date")}
                         error={!!errors.date} helperText={errors.date}
@@ -352,22 +358,22 @@ export const ReservationPage: React.FC = () => {
 
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                         <TextField
-                            label="Başlangıç Saati" select fullWidth value={form.time}
+                            label={r.startTime} select fullWidth value={form.time}
                             onChange={handleChange("time")}
                             error={!!errors.time} helperText={errors.time}
                         >
-                            <MenuItem value="">Seçin</MenuItem>
+                            <MenuItem value="">—</MenuItem>
                             {TIME_SLOTS.map((t) => (
                                 <MenuItem key={t} value={t}>{t}</MenuItem>
                             ))}
                         </TextField>
                         <TextField
-                            label="Bitiş Saati" select fullWidth value={form.endTime}
+                            label={r.endTime} select fullWidth value={form.endTime}
                             onChange={handleChange("endTime")}
                             error={!!errors.endTime} helperText={errors.endTime}
                             disabled={!form.time}
                         >
-                            <MenuItem value="">Seçin</MenuItem>
+                            <MenuItem value="">—</MenuItem>
                             {endTimeSlots.map((t) => (
                                 <MenuItem key={t} value={t}>{t}</MenuItem>
                             ))}
@@ -375,11 +381,11 @@ export const ReservationPage: React.FC = () => {
                     </Stack>
 
                     <TextField
-                        label="Kişi Sayısı" select fullWidth value={form.partySize}
+                        label={r.reservationDetails} select fullWidth value={form.partySize}
                         onChange={handleChange("partySize")}
                     >
                         {PARTY_SIZES.map((s) => (
-                            <MenuItem key={s} value={s}>{s} kişi</MenuItem>
+                            <MenuItem key={s} value={s}>{r.partySize(s)}</MenuItem>
                         ))}
                     </TextField>
 
@@ -391,13 +397,13 @@ export const ReservationPage: React.FC = () => {
                             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
                                 <TableRestaurantIcon fontSize="small" color="action" />
                                 <Typography variant="overline" color="text.secondary" fontWeight={700}>
-                                    Masa Seçimi
+                                    {r.tableSelection}
                                 </Typography>
                                 {loadingTables && <CircularProgress size={14} />}
                             </Stack>
 
                             <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-                                {LEGEND.map(({ color, label }) => (
+                                {legend.map(({ color, label }) => (
                                     <Stack key={label} direction="row" alignItems="center" spacing={0.5}>
                                         <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: color }} />
                                         <Typography variant="caption" color="text.secondary">{label}</Typography>
@@ -413,6 +419,9 @@ export const ReservationPage: React.FC = () => {
                                         isBooked={bookedTableIds.has(table.id)}
                                         isSelected={form.tableId === table.id}
                                         onSelect={handleTableSelect}
+                                        labelEmpty={r.tableEmpty}
+                                        labelFull={r.tableFull}
+                                        labelBooked={r.tableBooked}
                                     />
                                 ))}
                             </Box>
@@ -423,9 +432,9 @@ export const ReservationPage: React.FC = () => {
                                 </Typography>
                             )}
 
-                            {form.tableId && (
+                            {form.tableId && selectedTableName && (
                                 <Chip
-                                    label={`Seçili: ${selectedTableName}`}
+                                    label={r.selectedTable(selectedTableName)}
                                     color="primary" size="small" sx={{ mt: 1.5 }}
                                     onDelete={handleTableDeselect}
                                 />
@@ -433,19 +442,18 @@ export const ReservationPage: React.FC = () => {
                         </Box>
                     ) : (
                         <Alert severity="info" icon={<TableRestaurantIcon />}>
-                            Masa seçimi için önce tarih, başlangıç ve bitiş saatini seçin.
+                            {r.tableSelectHint}
                         </Alert>
                     )}
 
                     <TextField
-                        label="Not (opsiyonel)" fullWidth multiline rows={3}
-                        placeholder="Doğum günü, özel istek vb."
+                        label={r.note} fullWidth multiline rows={3}
+                        placeholder={r.notePlaceholder}
                         value={form.note} onChange={handleChange("note")}
                     />
 
                     <Alert severity="info" icon={<MarkEmailReadIcon />}>
-                        Formu gönderdikten sonra e-posta adresinize bir doğrulama linki gelecektir.
-                        Linke tıkladıktan sonra rezervasyon talebiniz işleme alınacaktır.
+                        {r.verificationInfo}
                     </Alert>
 
                     {submitError && <Alert severity="error">{submitError}</Alert>}
@@ -455,7 +463,7 @@ export const ReservationPage: React.FC = () => {
                         onClick={handleSubmit} disabled={loading}
                         sx={{ borderRadius: 2, py: 1.5, fontWeight: 700, fontSize: "1rem" }}
                     >
-                        {loading ? <CircularProgress size={24} color="inherit" /> : "Doğrulama Maili Gönder"}
+                        {loading ? <CircularProgress size={24} color="inherit" /> : r.submitButton}
                     </Button>
                 </Stack>
             </Paper>
