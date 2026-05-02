@@ -16,6 +16,7 @@ import TableRestaurantIcon from "@mui/icons-material/TableRestaurant";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { getAuth, onAuthStateChanged, signOut, type User } from "firebase/auth";
 import PeopleIcon from "@mui/icons-material/People";
@@ -23,7 +24,8 @@ import { useAuth } from "../../auth/aut.context.tsx";
 import { asBool, extractTokenFromQuery } from "../../utils";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import { LanguageSwitcher, useLanguage } from "../../i18n";
-import { TableOrdersDrawer } from "../../component";
+import {CallWaiterDialog, TableOrdersDrawer} from "../../component";
+import {useProximityCheck} from "../../hooks";
 
 type Props = {
     title: string;
@@ -38,12 +40,17 @@ export const Header = ({ title }: Props) => {
     const h         = t.header;
 
     const auth = useMemo(() => getAuth(), []);
+    const { status: proximityStatus } = useProximityCheck();
+    const isProximityOk =  proximityStatus === "allowed";
 
     const [userData, setUserData]           = useState<User | null>(auth.currentUser);
     const [anchorEl, setAnchorEl]           = useState<null | HTMLElement>(null);
     const [guestAnchorEl, setGuestAnchorEl] = useState<null | HTMLElement>(null);
     const [ordersDrawerOpen, setOrdersDrawerOpen] = useState(false);
 
+    // Butonu göster: QR ile gelen müşteri (tableId var) veya admin/garson
+    const activeTableId = localStorage.getItem("activeTableId");
+    const showOrdersButton = !!activeTableId || !!userData;
     const menuOpen      = Boolean(anchorEl);
     const guestMenuOpen = Boolean(guestAnchorEl);
 
@@ -139,7 +146,7 @@ export const Header = ({ title }: Props) => {
                 >
                     <Box sx={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 
-                        {/* Sol: Geri butonu */}
+                        {/* Sol: Geri butonu + Garson Cagirma */}
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                             {!isMenuPage ? (
                                 <Tooltip title={h.back}>
@@ -159,6 +166,28 @@ export const Header = ({ title }: Props) => {
                                 </Tooltip>
                             ) : (
                                 <Box sx={{ width: { xs: 25, sm: 30 }, height: { xs: 25, sm: 30 } }} />
+                            )}
+
+                            {showOrdersButton &&  activeTableId &&  (
+                                <>
+                                    <Tooltip title={h.sentOrders ?? "Kasaya Gönderilen Siparişler"}>
+                                        <IconButton
+                                            onClick={() => setOrdersDrawerOpen(true)}
+                                            sx={{
+                                                width: { xs: 25, sm: 30 },
+                                                height: { xs: 25, sm: 30 },
+                                                borderRadius: 999,
+                                                transition: "all 120ms ease",
+                                                color:"#FF7A00",
+                                                bgcolor:"#fff",
+                                                "&:hover": { bgcolor: "#FF7A00", color: "#fff" },
+                                            }}
+                                        >
+                                            <ReceiptLongIcon sx={{ fontSize: 18 }} />
+                                        </IconButton>
+                                    </Tooltip>
+                                    { isProximityOk &&   <CallWaiterDialog tableId={activeTableId ?? ""} tableName={`Masa ${activeTableId}`} /> }
+                                </>
                             )}
                         </Box>
 
