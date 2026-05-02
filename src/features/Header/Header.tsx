@@ -16,6 +16,7 @@ import TableRestaurantIcon from "@mui/icons-material/TableRestaurant";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { getAuth, onAuthStateChanged, signOut, type User } from "firebase/auth";
 import PeopleIcon from "@mui/icons-material/People";
 import { useAuth } from "../../auth/aut.context.tsx";
@@ -36,7 +37,6 @@ export const Header = ({ title }: Props) => {
     const { t }     = useLanguage();
     const h         = t.header;
 
-    // useMemo: initializeApp() sonrasi cagrilmasi garantilenir
     const auth = useMemo(() => getAuth(), []);
 
     const [userData, setUserData]           = useState<User | null>(auth.currentUser);
@@ -47,7 +47,6 @@ export const Header = ({ title }: Props) => {
     const menuOpen      = Boolean(anchorEl);
     const guestMenuOpen = Boolean(guestAnchorEl);
 
-    // ─── Derived
     const isMenuPage = useMemo(() => location.pathname === "/", [location.pathname]);
 
     const canSeeToGo = useMemo(
@@ -60,10 +59,8 @@ export const Header = ({ title }: Props) => {
         [userData, user]
     );
 
-    // Token extraction — yan etki yok, sadece side-effect icin calisir
     useMemo(() => extractTokenFromQuery(location), [location]);
 
-    // ─── Auth listener
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (u) => setUserData(u));
         return () => unsub();
@@ -99,13 +96,22 @@ export const Header = ({ title }: Props) => {
         navigate("/report");
     }, [navigate]);
 
+    const handleGoToReservations = useCallback(() => {
+        setAnchorEl(null);
+        navigate("/admin/rezervasyonlar");
+    }, [navigate]);
+
+    const handleGoToReservationPage = useCallback(() => {
+        setGuestAnchorEl(null);
+        navigate("/rezervasyon");
+    }, [navigate]);
+
     const handleLogout = useCallback(async () => {
         setAnchorEl(null);
         await signOut(auth);
         navigate("/");
     }, [auth, navigate]);
 
-    // ─── Drawer
     const handleCloseDrawer = useCallback(() => setOrdersDrawerOpen(false), []);
 
     return (
@@ -207,6 +213,10 @@ export const Header = ({ title }: Props) => {
                                             <ListItemIcon><LoginIcon fontSize="small" /></ListItemIcon>
                                             <ListItemText primary={h.login} />
                                         </MenuItem>
+                                        <MenuItem onClick={handleGoToReservationPage}>
+                                            <ListItemIcon><CalendarMonthIcon fontSize="small" /></ListItemIcon>
+                                            <ListItemText primary="Rezervasyon Yap" />
+                                        </MenuItem>
                                     </MuiMenu>
                                 </>
                             ) : (
@@ -250,8 +260,15 @@ export const Header = ({ title }: Props) => {
 
                                         {user?.userType === "admin" && (
                                             <MenuItem onClick={handleGoToReport}>
-                                                <ListItemIcon><AssessmentIcon /></ListItemIcon>
+                                                <ListItemIcon><AssessmentIcon fontSize="small" /></ListItemIcon>
                                                 <ListItemText primary={h.report} />
+                                            </MenuItem>
+                                        )}
+
+                                        {user?.userType === "admin" && (
+                                            <MenuItem onClick={handleGoToReservations}>
+                                                <ListItemIcon><CalendarMonthIcon fontSize="small" /></ListItemIcon>
+                                                <ListItemText primary="Rezervasyonlar" />
                                             </MenuItem>
                                         )}
 
