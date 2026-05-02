@@ -224,7 +224,7 @@ export const onReservationCreated = onValueCreated(
     {
         ref: "/reservations/{reservationId}",
         region: "europe-west1",
-        instance: "sercanatesfirini1development-default-rtdb",
+        instance: "restaurantorderwebdemo-default-rtdb",
         secrets: [SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM],
     },
     async (event) => {
@@ -248,7 +248,7 @@ export const onReservationCreated = onValueCreated(
             .ref(`reservations/${reservationId}/verificationToken`)
             .set(token);
 
-        const verifyUrl = `https://sercan-ates-firini1.vercel.app/rezervasyon/verify?token=${token}`;
+        const verifyUrl = `https://restaurant-order-web-demo.vercel.app/rezervasyon/verify?token=${token}`;
         const timeStr   = reservation.endTime
             ? `${reservation.time} – ${reservation.endTime}`
             : reservation.time || "-";
@@ -261,7 +261,7 @@ export const onReservationCreated = onValueCreated(
         <div style="padding:16px;border:1px solid #eee;border-radius:12px;margin:16px 0;">
           <p><strong>Tarih:</strong> ${reservation.date || "-"}</p>
           <p><strong>Saat:</strong> ${timeStr}</p>
-          <p><strong>Kişi Sayısı:</strong> ${reservation.tableId || "-"}</p>
+          <p><strong>Masa numarası:</strong> ${reservation.tableId || "-"}</p>
           <p><strong>Kişi Sayısı:</strong> ${reservation.partySize || "-"}</p>
         </div>
         <a href="${verifyUrl}"

@@ -36,7 +36,7 @@ export const ReservationVerifyPage: React.FC = () => {
 
             try {
                 const res  = await fetch(
-                    `https://europe-west1-sercanatesfirini1development.cloudfunctions.net/verifyReservationEmail?token=${encodeURIComponent(token)}`
+                    `https://europe-west1-restaurantorderwebdemo.cloudfunctions.net/verifyReservationEmail?token=${encodeURIComponent(token)}`
                 );
                 const data = await res.json() as { ok: boolean; error?: string };
 

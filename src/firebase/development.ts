@@ -4,14 +4,14 @@ import { getDatabase } from "firebase/database";
 import {getFunctions} from "firebase/functions";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyDbXRh7foTai5quXx4FiDc8HedTZN8EcqM",
-    authDomain: "lahmacunsefasidevelopment.firebaseapp.com",
-    databaseURL: "https://lahmacunsefasidevelopment-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "lahmacunsefasidevelopment",
-    storageBucket: "lahmacunsefasidevelopment.firebasestorage.app",
-    messagingSenderId: "476913404427",
-    appId: "1:476913404427:web:da8462bbc7a62f1d00950e",
-    measurementId: "G-9Z1XSES6T9"
+    apiKey: "AIzaSyC95nVCJ76YLvibA55OA86naEaK8BLquLw",
+    authDomain: "restaurantorderwebdemo.firebaseapp.com",
+    databaseURL: "https://restaurantorderwebdemo-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "restaurantorderwebdemo",
+    storageBucket: "restaurantorderwebdemo.firebasestorage.app",
+    messagingSenderId: "783104741879",
+    appId: "1:783104741879:web:c8331bf9a6bae3d4fb5ef2",
+    measurementId: "G-Y0X87DMYL3"
 };
 const app = initializeApp(firebaseConfig);
 
