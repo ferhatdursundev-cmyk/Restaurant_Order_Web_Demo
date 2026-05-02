@@ -54,7 +54,7 @@ export default function App() {
                 }}
             >
                 <Box sx={{ position: "sticky", top: 0, zIndex: 1200, bgcolor: "background.default" }}>
-                    <Header title="SERCAN ATES FIRINI" />
+                    <Header title="DEMO QR MENU" />
                 </Box>
 
                 <GlobalNotify />
