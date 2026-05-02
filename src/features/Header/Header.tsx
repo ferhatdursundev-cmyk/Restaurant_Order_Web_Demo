@@ -41,7 +41,7 @@ export const Header = ({ title }: Props) => {
 
     const auth = useMemo(() => getAuth(), []);
     const { status: proximityStatus } = useProximityCheck();
-    const isProximityOk =  proximityStatus === "allowed";
+    const isProximityOk =  proximityStatus === "allowed" || user?.userType === "admin";
 
     const [userData, setUserData]           = useState<User | null>(auth.currentUser);
     const [anchorEl, setAnchorEl]           = useState<null | HTMLElement>(null);
@@ -244,7 +244,7 @@ export const Header = ({ title }: Props) => {
                                         </MenuItem>
                                         <MenuItem onClick={handleGoToReservationPage}>
                                             <ListItemIcon><CalendarMonthIcon fontSize="small" /></ListItemIcon>
-                                            <ListItemText primary="Rezervasyon Yap" />
+                                            <ListItemText primary={t.reservation.title} />
                                         </MenuItem>
                                     </MuiMenu>
                                 </>
@@ -297,7 +297,7 @@ export const Header = ({ title }: Props) => {
                                         {user?.userType === "admin" && (
                                             <MenuItem onClick={handleGoToReservations}>
                                                 <ListItemIcon><CalendarMonthIcon fontSize="small" /></ListItemIcon>
-                                                <ListItemText primary="Rezervasyonlar" />
+                                                <ListItemText primary={t.reservation.title} />
                                             </MenuItem>
                                         )}
 
