@@ -1,6 +1,9 @@
 {
   "projects": {
-    "dev": "restaurantorderwebdemo"
+    "dev": "restaurantorderwebdemo",
+    "lahmacundev": "lahmacunsefasidevelopment",
+    "lahmacundevelop": "lahmacunsefasidevelopment",
+    "firebase use lahmacun": "lahmacunsefasidevelopment"
   },
   "targets": {},
   "etags": {}
