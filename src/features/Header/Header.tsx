@@ -103,10 +103,10 @@ export const Header = ({ title }: Props) => {
         navigate("/report");
     }, [navigate]);
 
-    const handleGoToReservations = useCallback(() => {
-        setAnchorEl(null);
-        navigate("/admin/rezervasyonlar");
-    }, [navigate]);
+   // const handleGoToReservations = useCallback(() => {
+    //    setAnchorEl(null);
+    //    navigate("/admin/rezervasyonlar");
+    // }, [navigate]);
 
     const handleGoToReservationPage = useCallback(() => {
         setGuestAnchorEl(null);
@@ -294,13 +294,13 @@ export const Header = ({ title }: Props) => {
                                             </MenuItem>
                                         )}
 
-                                        {user?.userType === "admin" && (
+                                        {/*   {user?.userType === "admin" && (
                                             <MenuItem onClick={handleGoToReservations}>
                                                 <ListItemIcon><CalendarMonthIcon fontSize="small" /></ListItemIcon>
                                                 <ListItemText primary={t.reservation.title} />
                                             </MenuItem>
                                         )}
-
+*/}
                                         <MenuItem onClick={handleLogout}>
                                             <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
                                             <ListItemText primary={h.logout} />
