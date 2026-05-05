@@ -103,8 +103,8 @@ export const Menu = () => {
     const [editItem, setEditItem]             = useState<EditableItem | null>(null);
 
     const [addDialogOpen, setAddDialogOpen]       = useState(false);
-    const [addSegKey, setAddSegKey]               = useState<string>("");
-    const [addCategoryLabel, setAddCategoryLabel] = useState("");
+    const [addSegKey /*setAddSegKey*/]               = useState<string>("");
+    const [addCategoryLabel, /*setAddCategoryLabel*/] = useState("");
 
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deleteTarget, setDeleteTarget]         = useState<{ segKey: string; itemKey: string; title: string; image?: string } | null>(null);
@@ -277,11 +277,11 @@ export const Menu = () => {
 
     const handleCloseEditDialog = useCallback(() => { setEditDialogOpen(false); setEditItem(null); }, []);
 
-    const handleOpenAddDialog = useCallback((segKey: string, label: string) => {
-        setAddSegKey(segKey);
-        setAddCategoryLabel(label);
-        setAddDialogOpen(true);
-    }, []);
+  //  const handleOpenAddDialog = useCallback((segKey: string, label: string) => {
+  //      setAddSegKey(segKey);
+  //      setAddCategoryLabel(label);
+  //      setAddDialogOpen(true);
+  //  }, []);
 
     const handleCloseAddDialog = useCallback(() => setAddDialogOpen(false), []);
 
@@ -332,7 +332,8 @@ export const Menu = () => {
                 }}
             >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    {user?.isAdmin && (
+                    {/*
+                     {user?.isAdmin && (
                         <Box
                             onClick={() => setManageCatsOpen(true)}
                             sx={{
@@ -343,9 +344,10 @@ export const Menu = () => {
                                 "&:hover": { transform: "scale(1.12)", boxShadow: "0 6px 18px rgba(76,175,80,0.5)" },
                             }}
                         >
-                            <Typography sx={{ color: "white", fontWeight: 900, fontSize: 20, lineHeight: 1 }}>+</Typography>
+                        <Typography sx={{ color: "white", fontWeight: 900, fontSize: 20, lineHeight: 1 }}>+</Typography>
                         </Box>
                     )}
+                    */}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                         {categories.length > 0 && activeSeg && (
                             <CustomSegment value={activeSeg} onChange={handleSegmentClick} items={categories} />
@@ -402,7 +404,7 @@ export const Menu = () => {
                                 <Typography variant="h6" sx={{ fontWeight: 900, fontSize: { xs: 18, md: 20 } }}>
                                     {label}
                                 </Typography>
-                                {user?.isAdmin && (
+                                {/* {user?.isAdmin && (
                                     <Box
                                         onClick={() => handleOpenAddDialog(key, label)}
                                         sx={{
@@ -416,7 +418,7 @@ export const Menu = () => {
                                         <Typography sx={{ color: "white", fontWeight: 900, fontSize: 20, lineHeight: 1 }}>+</Typography>
                                     </Box>
                                 )}
-
+                              */}
                             </Box>
 
                             {list.length === 0 && <Alert severity="info">{m.noItems}</Alert>}
