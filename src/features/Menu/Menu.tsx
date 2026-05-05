@@ -103,8 +103,8 @@ export const Menu = () => {
     const [editItem, setEditItem]             = useState<EditableItem | null>(null);
 
     const [addDialogOpen, setAddDialogOpen]       = useState(false);
-    const [addSegKey, setAddSegKey]               = useState<string>("");
-    const [addCategoryLabel, setAddCategoryLabel] = useState("");
+    const [addSegKey /*setAddSegKey*/]               = useState<string>("");
+    const [addCategoryLabel, /*setAddCategoryLabel*/] = useState("");
 
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deleteTarget, setDeleteTarget]         = useState<{ segKey: string; itemKey: string; title: string; image?: string } | null>(null);
@@ -277,11 +277,11 @@ export const Menu = () => {
 
     const handleCloseEditDialog = useCallback(() => { setEditDialogOpen(false); setEditItem(null); }, []);
 
-    const handleOpenAddDialog = useCallback((segKey: string, label: string) => {
-        setAddSegKey(segKey);
-        setAddCategoryLabel(label);
-        setAddDialogOpen(true);
-    }, []);
+  //  const handleOpenAddDialog = useCallback((segKey: string, label: string) => {
+  //      setAddSegKey(segKey);
+  //      setAddCategoryLabel(label);
+  //      setAddDialogOpen(true);
+  //  }, []);
 
     const handleCloseAddDialog = useCallback(() => setAddDialogOpen(false), []);
 
