@@ -15,8 +15,8 @@ import { TableOrdersDialog } from "./TableOrdersDialog";
 import type { OrdersMap, SelectedTable } from "./utils";
 import { TablesChange } from "./component/TablesChange.tsx";
 import { useAuth } from "../../auth/aut.context";
+//import { TableCreate } from "./component/TableCreate.tsx";
 
-// Tipler
 type TableEntity = {
     id?: string;
     name?: string;
@@ -233,7 +233,6 @@ export const Tables = () => {
         // tables realtime zaten dinleniyor, ek işlem gerekmez
     }, []);
 
-    // ─── Render ───────────────────────────────────────────────────────────
     return (
         <Box sx={{ pb: 4 }}>
             <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 2, md: 3 }, pt: 2 }}>
@@ -250,11 +249,16 @@ export const Tables = () => {
                     spacing={1}
                     sx={{ mt: 1.5, alignItems: { sm: "center" }, justifyContent: "space-between" }}
                 >
-                    <TablesChange
-                        loading={loading}
-                        list={list}
-                        onAfterClose={handleTablesChangeAfterClose}
-                    />
+                    {isAdmin &&
+                        <>
+                            <TablesChange
+                                loading={loading}
+                                list={list}
+                                onAfterClose={handleTablesChangeAfterClose}/>
+
+                            {/* <TableCreate /> */}
+                        </>
+                    }
                 </Stack>
 
                 <Box
