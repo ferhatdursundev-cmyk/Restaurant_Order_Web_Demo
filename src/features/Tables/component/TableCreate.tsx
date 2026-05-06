@@ -5,7 +5,7 @@ import { db } from "../../../firebase/firebase.ts";
 import { generateQrSecret } from "../../../utils";
 import { ConfirmDialog } from "../../../component";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
-import QRCode from "qrcode";
+import { TableQrCode } from "./TableQrCode.tsx";
 
 export const TableCreate = () => {
     const [newTableDialogOpen, setNewTableDialogOpen] = useState(false);
@@ -13,13 +13,13 @@ export const TableCreate = () => {
     const [newTableLoading, setNewTableLoading] = useState(false);
     const [newTableError, setNewTableError] = useState<string | null>(null);
     const [newTableSuccess, setNewTableSuccess] = useState<string | null>(null);
-    const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+    const [newQrKey, setNewQrKey] = useState<string | null>(null);
 
     const handleNewTableDialogOpen = useCallback(() => {
         setNewTableNumber("");
         setNewTableError(null);
         setNewTableSuccess(null);
-        setQrDataUrl(null);
+        setNewQrKey(null);
         setNewTableDialogOpen(true);
     }, []);
 
@@ -40,13 +40,13 @@ export const TableCreate = () => {
         setNewTableLoading(true);
         setNewTableError(null);
         setNewTableSuccess(null);
+        setNewQrKey(null);
 
         try {
             const tablesSnap = await get(ref(db, `tables/${tableId}`));
 
             if (tablesSnap.exists()) {
                 setNewTableError(`Masa ${trimmed} zaten mevcut. Farklı bir numara girin.`);
-                setNewTableLoading(false);
                 return;
             }
 
@@ -67,38 +67,7 @@ export const TableCreate = () => {
                 qrKey,
             });
 
-            //! QRCODE CREATE
-            const qrUrl = `https://restaurant-order-web-demo.vercel.app/t/${tableId}?k=${qrKey}`;
-
-            const canvas = document.createElement("canvas");
-            const qrSize = 256;
-            const headerH = 48;
-            const footerH = 48;
-            canvas.width = qrSize;
-            canvas.height = qrSize + headerH + footerH;
-
-            const ctx = canvas.getContext("2d")!;
-
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            ctx.fillStyle = "#000000";
-            ctx.font = "bold 22px Arial";
-            ctx.textAlign = "center";
-            ctx.fillText(`MASA ${trimmed}`, qrSize / 2, 32);
-
-            const qrCanvas = document.createElement("canvas");
-            await QRCode.toCanvas(qrCanvas, qrUrl, { width: qrSize, margin: 1 });
-            ctx.drawImage(qrCanvas, 0, headerH);
-
-            ctx.fillStyle = "#000000";
-            ctx.font = "bold 18px Arial";
-            ctx.textAlign = "center";
-            ctx.fillText("DEMO RESTORAN", qrSize / 2, qrSize + headerH + 32);
-
-            const dataUrl = canvas.toDataURL("image/png");
-            setQrDataUrl(dataUrl);
-
+            setNewQrKey(qrKey);
             setNewTableSuccess(`Masa ${trimmed} başarıyla oluşturuldu!`);
         } catch (err: any) {
             console.log("ERROR CODE:", err?.code);
@@ -206,21 +175,12 @@ export const TableCreate = () => {
                         <Typography sx={{ fontSize: 13, color: "success.main" }}>
                             {newTableSuccess}
                         </Typography>
-
-                        {qrDataUrl && (
-                            <Box sx={{ mt: 1.5, display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                                <img src={qrDataUrl} alt="QR Kod" style={{ width: 180, height: 180 }} />
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    color="success"
-                                    href={qrDataUrl}
-                                    download={`masa-${newTableNumber}-qr.png`}
-                                    sx={{ textTransform: "none", fontSize: 12 }}
-                                >
-                                    QR İndir
-                                </Button>
-                            </Box>
+                        {newQrKey && (
+                            <TableQrCode
+                                tableId={`t${newTableNumber}`}
+                                trimmed={newTableNumber}
+                                qrKey={newQrKey}
+                            />
                         )}
                     </Box>
                 )}

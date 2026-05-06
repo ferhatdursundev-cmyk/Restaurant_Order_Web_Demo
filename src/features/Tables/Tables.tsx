@@ -5,6 +5,7 @@ import {
     Card,
     CardActionArea,
     CardContent,
+   // IconButton,
     Skeleton,
     Stack,
     Typography,
@@ -13,9 +14,12 @@ import { db } from "../../firebase/firebase";
 import { ref, get, onValue } from "firebase/database";
 import { TableOrdersDialog } from "./TableOrdersDialog";
 import type { OrdersMap, SelectedTable } from "./utils";
-import { TablesChange } from "./component/TablesChange.tsx";
+import { TablesChange } from "./component";
 import { useAuth } from "../../auth/aut.context";
+// import EditIcon from "@mui/icons-material/Edit";
+// import DeleteIcon from "@mui/icons-material/Delete";
 //import { TableCreate } from "./component/TableCreate.tsx";
+//import {TableDelete} from "./component/TableDelete.tsx";
 
 type TableEntity = {
     id?: string;
@@ -60,10 +64,13 @@ function sumTableTotalsFromNode(node: unknown): number {
 
 export const Tables = () => {
     const { user } = useAuth();
+
     // Masalar state
     const [data, setData]       = useState<TablesMap | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState<string | null>(null);
+    //const [/*editTable*/, setEditTable] = useState<{ id: string; name: string } | null>(null);
+    //const [/*deleteTable*/, setDeleteTable] = useState<{ id: string; name: string } | null>(null);
 
     // Orders dialog state
     const [ordersOpen, setOrdersOpen]       = useState(false);
@@ -256,7 +263,7 @@ export const Tables = () => {
                                 list={list}
                                 onAfterClose={handleTablesChangeAfterClose}/>
 
-                            {/* <TableCreate /> */}
+                            {/*  <TableCreate /> */}
                         </>
                     }
                 </Stack>
@@ -298,6 +305,7 @@ export const Tables = () => {
                                         border: "2px solid",
                                         borderColor: hasTotal ? "error.main" : "success.main",
                                         overflow: "hidden",
+                                        position: "relative",
                                         background: hasTotal
                                             ? "linear-gradient(180deg, rgba(244,67,54,0.10), rgba(244,67,54,0.03))"
                                             : "linear-gradient(180deg, rgba(76,175,80,0.10), rgba(76,175,80,0.03))",
@@ -306,8 +314,50 @@ export const Tables = () => {
                                             transform: "translateY(-3px)",
                                             boxShadow: "0 18px 60px rgba(0,0,0,0.12)",
                                         },
+                                        "&:hover .table-actions": {
+                                            opacity: 1,
+                                        },
                                     }}
                                 >
+                                    {/*
+                                // Masa üstüne hover yapinca görünen Iconlar
+                                    {isAdmin && (
+                                        <Box
+                                            className="table-actions"
+                                            sx={{
+                                                position: "absolute",
+                                                top: 6,
+                                                right: 6,
+                                                display: "flex",
+                                                gap: 0.5,
+                                                opacity: 0,
+                                                transition: "opacity 150ms ease",
+                                                zIndex: 10,
+                                            }}
+                                        >
+                                            <IconButton
+                                                size="small"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditTable({ id: String(t.id), name: String(t.name) });
+                                                }}
+                                                sx={{ bgcolor: "rgba(255,255,255,0.85)", "&:hover": { bgcolor: "white" } }}
+                                            >
+                                                <EditIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                                            </IconButton>
+                                            <IconButton
+                                                size="small"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setDeleteTable({ id: String(t.id), name: String(t.name) });
+                                                }}
+                                                sx={{ bgcolor: "rgba(255,255,255,0.85)", "&:hover": { bgcolor: "white" } }}
+                                            >
+                                                <DeleteIcon sx={{ fontSize: 16, color: "error.main" }} />
+                                            </IconButton>
+                                        </Box>
+                                    )}
+                                    */}
                                     <CardActionArea
                                         onClick={() => openTableOrders(String(t.id), String(t.name))}
                                         sx={{ p: 0, height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -352,6 +402,26 @@ export const Tables = () => {
                 error={ordersError}
                 orders={orders}
             />
+            {/*
+            {editTable && (
+                <TableEdit
+                    open={!!editTable}
+                    tableId={editTable.id}
+                    tableName={editTable.name}
+                    onClose={() => setEditTable(null)}
+                    onSuccess={() => {}}
+                />
+            )}
+            {deleteTable && (
+                <TableDelete
+                    open={!!deleteTable}
+                    tableId={deleteTable.id}
+                    tableName={deleteTable.name}
+                    onClose={() => setDeleteTable(null)}
+                    onSuccess={() => setDeleteTable(null)}
+                />
+            )}
+            */}
         </Box>
     );
 };
