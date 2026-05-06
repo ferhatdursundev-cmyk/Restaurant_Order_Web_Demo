@@ -17,14 +17,14 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
-import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+// import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { getAuth, onAuthStateChanged, signOut, type User } from "firebase/auth";
 import PeopleIcon from "@mui/icons-material/People";
 import { useAuth } from "../../auth/aut.context.tsx";
 import { asBool, extractTokenFromQuery } from "../../utils";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import { LanguageSwitcher, useLanguage } from "../../i18n";
-import {CallWaiterDialog, TableOrdersDrawer} from "../../component";
+import {TableOrdersDrawer} from "../../component";
 import {useProximityCheck} from "../../hooks";
 
 type Props = {
@@ -42,6 +42,7 @@ export const Header = ({ title }: Props) => {
     const auth = useMemo(() => getAuth(), []);
     const { status: proximityStatus } = useProximityCheck();
     const isProximityOk =  proximityStatus === "allowed" || user?.userType === "admin";
+    console.log("isProximityOk", isProximityOk)
 
     const [userData, setUserData]           = useState<User | null>(auth.currentUser);
     const [anchorEl, setAnchorEl]           = useState<null | HTMLElement>(null);
@@ -108,10 +109,10 @@ export const Header = ({ title }: Props) => {
     //    navigate("/admin/rezervasyonlar");
     // }, [navigate]);
 
-    const handleGoToReservationPage = useCallback(() => {
-        setGuestAnchorEl(null);
-        navigate("/rezervasyon");
-    }, [navigate]);
+    // const handleGoToReservationPage = useCallback(() => {
+    //     setGuestAnchorEl(null);
+    //    navigate("/rezervasyon");
+    // }, [navigate]);
 
     const handleLogout = useCallback(async () => {
         setAnchorEl(null);
@@ -186,7 +187,7 @@ export const Header = ({ title }: Props) => {
                                             <ReceiptLongIcon sx={{ fontSize: 18 }} />
                                         </IconButton>
                                     </Tooltip>
-                                    { isProximityOk &&   <CallWaiterDialog tableId={activeTableId ?? ""} tableName={`Masa ${activeTableId}`} /> }
+                                    {/*   { isProximityOk &&   <CallWaiterDialog tableId={activeTableId ?? ""} tableName={`Masa ${activeTableId}`} /> } */}
                                 </>
                             )}
                         </Box>
@@ -242,10 +243,12 @@ export const Header = ({ title }: Props) => {
                                             <ListItemIcon><LoginIcon fontSize="small" /></ListItemIcon>
                                             <ListItemText primary={h.login} />
                                         </MenuItem>
-                                        <MenuItem onClick={handleGoToReservationPage}>
+                                        {/*
+                                          <MenuItem onClick={handleGoToReservationPage}>
                                             <ListItemIcon><CalendarMonthIcon fontSize="small" /></ListItemIcon>
                                             <ListItemText primary={t.reservation.title} />
                                         </MenuItem>
+                                        */}
                                     </MuiMenu>
                                 </>
                             ) : (
