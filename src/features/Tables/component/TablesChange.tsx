@@ -184,6 +184,9 @@ export const TablesChange = ({
                 }}
             >
                 <Box sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: "error.main" }}>
+                        DOLU BİR MASA SADECE BOŞ BİR MASA İLE DEĞİŞTİRİLEBİLİR!
+                    </Typography>
                     {error && <Alert severity="error">{error}</Alert>}
                     {okMsg && <Alert severity="success">{okMsg}</Alert>}
 
