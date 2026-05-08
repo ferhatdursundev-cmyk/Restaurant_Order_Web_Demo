@@ -45,6 +45,8 @@ export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props
     const [titles,         setTitles]         = useState<TitlesByLang>(EMPTY_TITLES);
     const [titleErrors,    setTitleErrors]     = useState<Partial<Record<LangCode, string>>>({});
     const [price,          setPrice]           = useState("");
+    const [salePrice,      setSalePrice]       = useState("");
+    const [salePriceError, setSalePriceError]  = useState("");
     const [allergens,      setAllergens]       = useState<string[]>([]);
     const [priceError,     setPriceError]      = useState("");
     const [busy,           setBusy]            = useState(false);
@@ -58,6 +60,8 @@ export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props
         setTitles(EMPTY_TITLES);
         setTitleErrors({});
         setPrice("");
+        setSalePrice("");
+        setSalePriceError("");
         setAllergens([]);
         setPriceError("");
         setIngredients(EMPTY_TITLES);
@@ -85,6 +89,11 @@ export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props
     const handlePriceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         if (/^\d*$/.test(val)) { setPrice(val); setPriceError(""); }
+    }, []);
+
+    const handleSalePriceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        if (/^\d*$/.test(val)) { setSalePrice(val); setSalePriceError(""); }
     }, []);
 
     const handleAllergenChange = useCallback(
@@ -122,6 +131,12 @@ export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props
         const parsedPrice = Number(price);
         if (!price || isNaN(parsedPrice) || parsedPrice <= 0) {
             setPriceError("Geçerli bir fiyat girin.");
+            return;
+        }
+
+        const parsedSalePrice = salePrice ? Number(salePrice) : null;
+        if (parsedSalePrice !== null && (isNaN(parsedSalePrice) || parsedSalePrice <= 0 || parsedSalePrice >= parsedPrice)) {
+            setSalePriceError("İndirimli fiyat, normal fiyattan küçük olmalıdır.");
             return;
         }
 
@@ -166,6 +181,7 @@ export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props
                 id:          Date.now(),
                 title:       titles.tr.trim(),
                 price:       parsedPrice,
+                ...(parsedSalePrice !== null && { salePrice: parsedSalePrice }),
                 isAvailable: true,
                 type:        segKey,
                 keyTitle:    titles.tr.trim().toLowerCase().replace(/\s+/g, "_"),
@@ -190,7 +206,7 @@ export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props
             setBusy(false);
             setUploadProgress(null);
         }
-    }, [titles, price, allergens, ingredients, imageFile, optionItems, segKey, uploadImage, dispatch, resetForm, onClose]);
+    }, [titles, price, salePrice, allergens, ingredients, imageFile, optionItems, segKey, uploadImage, dispatch, resetForm, onClose]);
 
     const handleClose = useCallback(() => {
         if (!busy) { resetForm(); onClose(); }
@@ -230,6 +246,17 @@ export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props
                     disabled={busy}
                     error={!!priceError}
                     helperText={priceError}
+                    inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+                />
+
+                <TextField
+                    label="İndirimli Fiyat (TL) — opsiyonel"
+                    value={salePrice}
+                    onChange={handleSalePriceChange}
+                    fullWidth
+                    disabled={busy}
+                    error={!!salePriceError}
+                    helperText={salePriceError || "Boş bırakılırsa indirim uygulanmaz"}
                     inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
                 />
 
