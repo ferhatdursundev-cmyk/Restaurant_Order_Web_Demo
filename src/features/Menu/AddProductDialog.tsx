@@ -1,111 +1,51 @@
-import React, { useState, useCallback, useMemo } from "react";
-import {
-    Box,
-    Chip,
-    TextField,
-    Typography,
-    Autocomplete,
-} from "@mui/material";
-import { ConfirmDialog, TranslatedTitleField, type TitlesByLang, type LangCode  } from "../../component";
-import { ImageUploadField } from "./ImageUploadField";
-import { OptionsCatalogField, type OptionItem } from "./OptionsCatalogField.tsx";
+import { useState, useCallback, useMemo } from "react";
+import { ConfirmDialog, type TitlesByLang, type LangCode } from "../../component";
+import { type OptionItem } from "./OptionsCatalogField.tsx";
+import { ProductFormFields, type ProductFormState, type ProductFormHandlers, VALID_ALLERGEN_CODES } from "./ProductFormFields";
 import { db } from "../../firebase/firebase";
 import { ref as rtdbRef, push, set, get } from "firebase/database";
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useAppDispatch, show as showNotify } from "../../store";
-import { useAllergenMap } from "../../utils";
-import {EMPTY_TITLES} from "../../type/translatedField.constants.ts";
-
-const VALID_ALLERGEN_CODES = new Set([
-    "A","Aa","Ab","Ac","Ad","Ae","Af",
-    "B","C","D","E","F","G","H","I","J","K","L","M","N","O","Q","T",
-    "1","2","3","4","5","6","7","8","9","10","11","12","13","14","15",
-]);
+import { EMPTY_TITLES } from "../../type/translatedField.constants.ts";
 
 type Props = {
-    open: boolean;
-    segKey: string;
+    open:          boolean;
+    segKey:        string;
     categoryLabel: string;
-    onClose: () => void;
+    onClose:       () => void;
 };
 
 export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props) => {
-    const dispatch    = useAppDispatch();
-    const allergenMap = useAllergenMap();
-    const storage     = useMemo(() => getStorage(), []);
+    const dispatch = useAppDispatch();
+    const storage  = useMemo(() => getStorage(), []);
 
-    const allergenOptions = useMemo(
-        () =>
-            Object.entries(allergenMap)
-                .filter(([code]) => VALID_ALLERGEN_CODES.has(code))
-                .map(([code, label]) => ({ code, label })),
-        [allergenMap]
-    );
-
-    const [titles,         setTitles]         = useState<TitlesByLang>(EMPTY_TITLES);
-    const [titleErrors,    setTitleErrors]     = useState<Partial<Record<LangCode, string>>>({});
-    const [price,          setPrice]           = useState("");
-    const [salePrice,      setSalePrice]       = useState("");
-    const [salePriceError, setSalePriceError]  = useState("");
-    const [allergens,      setAllergens]       = useState<string[]>([]);
-    const [priceError,     setPriceError]      = useState("");
-    const [busy,           setBusy]            = useState(false);
-    const [ingredients,    setIngredients]     = useState<TitlesByLang>(EMPTY_TITLES);
-    const [optionItems,    setOptionItems]     = useState<OptionItem[]>([]);
-    const [imageFile,      setImageFile]       = useState<File | null>(null);
-    const [imagePreview,   setImagePreview]    = useState<string | null>(null);
-    const [uploadProgress, setUploadProgress]  = useState<number | null>(null);
+    const [titles,         setTitles]        = useState<TitlesByLang>(EMPTY_TITLES);
+    const [titleErrors,    setTitleErrors]   = useState<Partial<Record<LangCode, string>>>({});
+    const [price,          setPrice]         = useState("");
+    const [priceError,     setPriceError]    = useState("");
+    const [salePrice,      setSalePrice]     = useState("");
+    const [salePriceError, setSalePriceError]= useState("");
+    const [allergens,      setAllergens]     = useState<string[]>([]);
+    const [busy,           setBusy]          = useState(false);
+    const [ingredients,    setIngredients]   = useState<TitlesByLang>(EMPTY_TITLES);
+    const [optionItems,    setOptionItems]   = useState<OptionItem[]>([]);
+    const [imageFile,      setImageFile]     = useState<File | null>(null);
+    const [imagePreview,   setImagePreview]  = useState<string | null>(null);
+    const [uploadProgress, setUploadProgress]= useState<number | null>(null);
 
     const resetForm = useCallback(() => {
         setTitles(EMPTY_TITLES);
         setTitleErrors({});
         setPrice("");
+        setPriceError("");
         setSalePrice("");
         setSalePriceError("");
         setAllergens([]);
-        setPriceError("");
         setIngredients(EMPTY_TITLES);
         setImageFile(null);
         setImagePreview(null);
         setUploadProgress(null);
     }, []);
-
-    const handleTitleChange = useCallback((lang: LangCode, value: string) => {
-        setTitles((prev) => ({ ...prev, [lang]: value }));
-        setTitleErrors((prev) => ({ ...prev, [lang]: undefined }));
-    }, []);
-
-    const handleIngredientsChange = useCallback((lang: LangCode, value: string) => {
-        setIngredients((prev) => ({ ...prev, [lang]: value }));
-    }, []);
-
-    const handleFile = useCallback((file: File) => {
-        setImageFile(file);
-        const reader = new FileReader();
-        reader.onload = (e) => setImagePreview(e.target?.result as string);
-        reader.readAsDataURL(file);
-    }, []);
-
-    const handlePriceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        if (/^\d*$/.test(val)) { setPrice(val); setPriceError(""); }
-    }, []);
-
-    const handleSalePriceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        if (/^\d*$/.test(val)) { setSalePrice(val); setSalePriceError(""); }
-    }, []);
-
-    const handleAllergenChange = useCallback(
-        (_: unknown, newVal: { code: string; label: string }[]) =>
-            setAllergens(newVal.map((v) => v.code)),
-        []
-    );
-
-    const selectedAllergenObjects = useMemo(
-        () => allergenOptions.filter((opt) => allergens.includes(opt.code)),
-        [allergenOptions, allergens]
-    );
 
     const uploadImage = useCallback(
         (file: File, path: string): Promise<string> =>
@@ -150,11 +90,9 @@ export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props
         try {
             const snap = await get(rtdbRef(db, `menu/${segKey}`));
             if (snap.exists()) {
-                const existing = snap.val() as Record<string, { title?: string }>;
+                const existing   = snap.val() as Record<string, { title?: string }>;
                 const titleLower = titles.tr.trim().toLowerCase();
-                const isDupe = Object.values(existing).some(
-                    (v) => v?.title?.toLowerCase() === titleLower
-                );
+                const isDupe     = Object.values(existing).some((v) => v?.title?.toLowerCase() === titleLower);
                 if (isDupe) {
                     dispatch(showNotify({ message: "Bu isimde bir ürün zaten var.", severity: "error" }));
                     setBusy(false);
@@ -212,6 +150,23 @@ export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props
         if (!busy) { resetForm(); onClose(); }
     }, [busy, resetForm, onClose]);
 
+    const formState: ProductFormState = {
+        titles, titleErrors, price, priceError,
+        salePrice, salePriceError, allergens,
+        ingredients, optionItems, imageFile, imagePreview, uploadProgress,
+    };
+
+    const formHandlers: ProductFormHandlers = {
+        onTitleChange:       (lang, value) => { setTitles((p) => ({ ...p, [lang]: value })); setTitleErrors((p) => ({ ...p, [lang]: undefined })); },
+        onPriceChange:       (e) => { if (/^\d*$/.test(e.target.value)) { setPrice(e.target.value); setPriceError(""); } },
+        onSalePriceChange:   (e) => { if (/^\d*$/.test(e.target.value)) { setSalePrice(e.target.value); setSalePriceError(""); } },
+        onIngredientsChange: (lang, value) => setIngredients((p) => ({ ...p, [lang]: value })),
+        onAllergenChange:    (_, newVal) => setAllergens((newVal as { code: string }[]).map((v) => v.code)),
+        onAllergenDelete:    (code) => setAllergens((p) => p.filter((c) => c !== code)),
+        onOptionItemsChange: setOptionItems,
+        onFile:              (file) => { setImageFile(file); const r = new FileReader(); r.onload = (e) => setImagePreview(e.target?.result as string); r.readAsDataURL(file); },
+    };
+
     return (
         <ConfirmDialog
             open={open}
@@ -223,107 +178,7 @@ export const AddProductDialog = ({ open, segKey, categoryLabel, onClose }: Props
             onClose={handleClose}
             onConfirm={handleSave}
         >
-            <Box sx={{ display: "grid", gap: 2, pt: 1 }}>
-                <ImageUploadField
-                    preview={imagePreview}
-                    uploadProgress={uploadProgress}
-                    disabled={busy}
-                    onFile={handleFile}
-                />
-
-                <TranslatedTitleField
-                    values={titles}
-                    onChange={handleTitleChange}
-                    disabled={busy}
-                    errors={titleErrors}
-                />
-
-                <TextField
-                    label="Fiyat (TL)"
-                    value={price}
-                    onChange={handlePriceChange}
-                    fullWidth
-                    disabled={busy}
-                    error={!!priceError}
-                    helperText={priceError}
-                    inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
-                />
-
-                <TextField
-                    label="İndirimli Fiyat (TL) — opsiyonel"
-                    value={salePrice}
-                    onChange={handleSalePriceChange}
-                    fullWidth
-                    disabled={busy}
-                    error={!!salePriceError}
-                    helperText={salePriceError || "Boş bırakılırsa indirim uygulanmaz"}
-                    inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
-                />
-
-                <Box>
-                    <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1, color: "text.secondary" }}>
-                        İçindekiler
-                    </Typography>
-                    <TranslatedTitleField
-                        values={ingredients}
-                        onChange={handleIngredientsChange}
-                        disabled={busy}
-                        multiline
-                        minRows={2}
-                        placeholder="Örn: un, su, tuz, maya, zeytinyağı..."
-                    />
-                </Box>
-
-                <Box>
-                    <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1, color: "text.secondary" }}>
-                        Alerjenler
-                    </Typography>
-                    <Autocomplete
-                        multiple
-                        options={allergenOptions}
-                        getOptionLabel={(opt) => opt.label}
-                        value={selectedAllergenObjects}
-                        onChange={handleAllergenChange}
-                        disabled={busy}
-                        isOptionEqualToValue={(opt, val) => opt.code === val.code}
-                        renderTags={(value, getTagProps) =>
-                            value.map((opt, index) => (
-                                <Chip
-                                    {...getTagProps({ index })}
-                                    key={opt.code}
-                                    label={opt.label}
-                                    size="small"
-                                    sx={{ borderRadius: 999, fontWeight: 600 }}
-                                />
-                            ))
-                        }
-                        renderInput={(params) => (
-                            <TextField {...params} placeholder="Alerjen seç..." size="small" />
-                        )}
-                    />
-                </Box>
-
-                {allergens.length > 0 && (
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                        {allergens.map((code) => (
-                            <Chip
-                                key={code}
-                                label={allergenMap[code] ?? code}
-                                size="small"
-                                variant="outlined"
-                                onDelete={() => setAllergens((prev) => prev.filter((c) => c !== code))}
-                                sx={{ borderRadius: 999, fontWeight: 600, fontSize: 12 }}
-                            />
-                        ))}
-                    </Box>
-                )}
-
-                <OptionsCatalogField
-                    items={optionItems}
-                    onChange={setOptionItems}
-                    disabled={busy}
-                />
-            </Box>
+            <ProductFormFields state={formState} handlers={formHandlers} disabled={busy} />
         </ConfirmDialog>
     );
 };

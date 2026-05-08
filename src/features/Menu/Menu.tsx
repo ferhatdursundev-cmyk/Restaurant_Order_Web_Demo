@@ -23,7 +23,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { CustomSegment, useAllergenMap } from "../../utils";
 import { useProximityCheck, useTableSession } from "../../hooks";
 import EditIcon from "@mui/icons-material/Edit";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+//import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { useLanguage, getLocalizedField } from "../../i18n";
 import { ItemEditDialog, type EditableItem } from "./ItemEditDialog";
 import { AddProductDialog } from "./AddProductDialog";
@@ -278,18 +278,18 @@ export const Menu = () => {
 
     const handleCloseEditDialog = useCallback(() => { setEditDialogOpen(false); setEditItem(null); }, []);
 
-  //  const handleOpenAddDialog = useCallback((segKey: string, label: string) => {
-  //      setAddSegKey(segKey);
-  //      setAddCategoryLabel(label);
-  //      setAddDialogOpen(true);
-  //  }, []);
+    //  const handleOpenAddDialog = useCallback((segKey: string, label: string) => {
+    //      setAddSegKey(segKey);
+    //      setAddCategoryLabel(label);
+    //      setAddDialogOpen(true);
+    //  }, []);
 
     const handleCloseAddDialog = useCallback(() => setAddDialogOpen(false), []);
 
-    const handleOpenDeleteDialog = useCallback((segKey: string, itemKey: string, title: string, image?: string) => {
-        setDeleteTarget({ segKey, itemKey, title, image });
-        setDeleteDialogOpen(true);
-    }, []);
+    //  const handleOpenDeleteDialog = useCallback((segKey: string, itemKey: string, title: string, image?: string) => {
+    //    setDeleteTarget({ segKey, itemKey, title, image });
+    //    setDeleteDialogOpen(true);
+    //}, []);
 
     const handleCloseDeleteDialog = useCallback(() => {
         if (!deleteBusy) { setDeleteDialogOpen(false); setDeleteTarget(null); }
@@ -492,9 +492,11 @@ export const Menu = () => {
                                                                 <IconButton size="small" onClick={() => handleOpenEditDialog(key, { key: item.key, title: item.title, price: item.price, image: item.image, ingredients: item.ingredients, allergens: item.allergens, translations: item.translations })} sx={{ color: "#FF7A00" }}>
                                                                     <EditIcon fontSize="small" />
                                                                 </IconButton>
+                                                                {/*
                                                                 <IconButton size="small" onClick={() => handleOpenDeleteDialog(key, item.key, item.title, item.image)} sx={{ color: "error.main" }}>
                                                                     <DeleteOutlineIcon fontSize="small" />
                                                                 </IconButton>
+                                                                */}
                                                             </Box>
                                                             <PremiumSwitch
                                                                 size="small"
