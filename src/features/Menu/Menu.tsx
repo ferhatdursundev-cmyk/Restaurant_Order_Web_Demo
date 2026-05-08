@@ -39,6 +39,7 @@ type MenuItem = {
     title: string;
     type: string;
     price: number;
+    salePrice?: number;
     image?: string;
     description?: string;
     ingredients?: Record<string, string>;
@@ -461,8 +462,27 @@ export const Menu = () => {
                                                 <CardContent sx={{ display: "grid", gap: 1.1 }}>
                                                     <Box sx={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 1 }}>
                                                         <Typography sx={{ fontWeight: 950, lineHeight: 1.15, fontSize: 16 }}>{localTitle}</Typography>
-                                                        <Box sx={{ px: 1.2, py: 0.6, borderRadius: 999, bgcolor: "rgba(17,24,39,0.80)", color: "white", fontWeight: 900, fontSize: 15, letterSpacing: 0.2, backdropFilter: "blur(10px)", whiteSpace: "nowrap" }}>
-                                                            {formatPriceTRY(item.price)}
+                                                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", px: 1.2, py: 0.6, borderRadius: 999, bgcolor: "rgba(17,24,39,0.80)", color: "white", backdropFilter: "blur(10px)", whiteSpace: "nowrap" }}>
+                                                            {item.salePrice ? (
+                                                                <>
+                                                                    <Typography
+                                                                        component="span"
+                                                                        sx={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)", textDecoration: "line-through", lineHeight: 1.2 }}
+                                                                    >
+                                                                        {formatPriceTRY(item.price)}
+                                                                    </Typography>
+                                                                    <Typography
+                                                                        component="span"
+                                                                        sx={{ fontSize: 15, fontWeight: 900, color: "#FF7A00", lineHeight: 1.2 }}
+                                                                    >
+                                                                        {formatPriceTRY(item.salePrice)}
+                                                                    </Typography>
+                                                                </>
+                                                            ) : (
+                                                                <Typography component="span" sx={{ fontSize: 15, fontWeight: 900, lineHeight: 1 }}>
+                                                                    {formatPriceTRY(item.price)}
+                                                                </Typography>
+                                                            )}
                                                         </Box>
                                                     </Box>
 
