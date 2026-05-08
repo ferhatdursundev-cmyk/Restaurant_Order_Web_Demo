@@ -16,7 +16,7 @@ import TableRestaurantIcon from "@mui/icons-material/TableRestaurant";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+//import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 // import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { getAuth, onAuthStateChanged, signOut, type User } from "firebase/auth";
 import PeopleIcon from "@mui/icons-material/People";
@@ -104,7 +104,7 @@ export const Header = ({ title }: Props) => {
         navigate("/report");
     }, [navigate]);
 
-   // const handleGoToReservations = useCallback(() => {
+    // const handleGoToReservations = useCallback(() => {
     //    setAnchorEl(null);
     //    navigate("/admin/rezervasyonlar");
     // }, [navigate]);
@@ -171,6 +171,7 @@ export const Header = ({ title }: Props) => {
 
                             {showOrdersButton &&  activeTableId &&  (
                                 <>
+                                    {/*
                                     <Tooltip title={h.sentOrders ?? "Kasaya Gönderilen Siparişler"}>
                                         <IconButton
                                             onClick={() => setOrdersDrawerOpen(true)}
@@ -187,6 +188,7 @@ export const Header = ({ title }: Props) => {
                                             <ReceiptLongIcon sx={{ fontSize: 18 }} />
                                         </IconButton>
                                     </Tooltip>
+                                    */}
                                     {/*   { isProximityOk &&   <CallWaiterDialog tableId={activeTableId ?? ""} tableName={`Masa ${activeTableId}`} /> } */}
                                 </>
                             )}
