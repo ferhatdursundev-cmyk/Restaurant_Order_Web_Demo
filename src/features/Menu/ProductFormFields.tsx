@@ -92,7 +92,7 @@ export const ProductFormFields = ({ state, handlers, disabled }: Props) => {
                 inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
             />
 
-            {/*
+
             <TextField
                 label="İndirimli Fiyat (TL) — opsiyonel"
                 value={state.salePrice}
@@ -103,7 +103,6 @@ export const ProductFormFields = ({ state, handlers, disabled }: Props) => {
                 helperText={state.salePriceError || "Boş bırakılırsa indirim uygulanmaz"}
                 inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
             />
-        */}
             <Box>
                 <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1, color: "text.secondary" }}>
                     İçindekiler
