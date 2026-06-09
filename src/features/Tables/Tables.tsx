@@ -5,7 +5,7 @@ import {
     Card,
     CardActionArea,
     CardContent,
-   // IconButton,
+    IconButton,
     Skeleton,
     Stack,
     Typography,
@@ -14,12 +14,12 @@ import { db } from "../../firebase/firebase";
 import { ref, get, onValue } from "firebase/database";
 import { TableOrdersDialog } from "./TableOrdersDialog";
 import type { OrdersMap, SelectedTable } from "./utils";
-import { TablesChange } from "./component";
+import {TableEdit, TablesChange} from "./component";
 import { useAuth } from "../../auth/aut.context";
-// import EditIcon from "@mui/icons-material/Edit";
-// import DeleteIcon from "@mui/icons-material/Delete";
-//import { TableCreate } from "./component/TableCreate.tsx";
-//import {TableDelete} from "./component/TableDelete.tsx";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import { TableCreate } from "./component/TableCreate.tsx";
+import {TableDelete} from "./component/TableDelete.tsx";
 
 type TableEntity = {
     id?: string;
@@ -69,8 +69,8 @@ export const Tables = () => {
     const [data, setData]       = useState<TablesMap | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState<string | null>(null);
-    //const [/*editTable*/, setEditTable] = useState<{ id: string; name: string } | null>(null);
-    //const [/*deleteTable*/, setDeleteTable] = useState<{ id: string; name: string } | null>(null);
+    const [editTable, setEditTable] = useState<{ id: string; name: string } | null>(null);
+    const [deleteTable, setDeleteTable] = useState<{ id: string; name: string } | null>(null);
 
     // Orders dialog state
     const [ordersOpen, setOrdersOpen]       = useState(false);
@@ -263,7 +263,7 @@ export const Tables = () => {
                                 list={list}
                                 onAfterClose={handleTablesChangeAfterClose}/>
 
-                            {/*  <TableCreate /> */}
+                            <TableCreate />
                         </>
                     }
                 </Stack>
@@ -319,8 +319,6 @@ export const Tables = () => {
                                         },
                                     }}
                                 >
-                                    {/*
-                                // Masa üstüne hover yapinca görünen Iconlar
                                     {isAdmin && (
                                         <Box
                                             className="table-actions"
@@ -357,7 +355,7 @@ export const Tables = () => {
                                             </IconButton>
                                         </Box>
                                     )}
-                                    */}
+
                                     <CardActionArea
                                         onClick={() => openTableOrders(String(t.id), String(t.name))}
                                         sx={{ p: 0, height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -402,7 +400,7 @@ export const Tables = () => {
                 error={ordersError}
                 orders={orders}
             />
-            {/*
+
             {editTable && (
                 <TableEdit
                     open={!!editTable}
@@ -421,7 +419,6 @@ export const Tables = () => {
                     onSuccess={() => setDeleteTable(null)}
                 />
             )}
-            */}
         </Box>
     );
 };
