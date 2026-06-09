@@ -3,6 +3,7 @@ import cartReducer from "./cart.slice";
 import notifyReducer from "./notify.slice";
 import orderSettingsReducer from "./orderSettings.slice";
 import tableLiveCartReducer from "./tableLiveCartSlice";
+import tableSessionReducer from "./tableSessionSlice";
 
 export const store = configureStore({
     reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
         notify: notifyReducer,
         orderSettings: orderSettingsReducer,
         tableLiveCart: tableLiveCartReducer,
+        tableSession: tableSessionReducer,
     },
 });
 

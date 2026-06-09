@@ -18,6 +18,7 @@ import { ConfirmDialog, PremiumSwitch } from "../../component";
 import { getStorage, ref as storageRef, deleteObject } from "firebase/storage";
 import { ref as rtdbRef, remove } from "firebase/database";
 import { useAppDispatch, addItem, useAppSelector, show as showNotify } from "../../store";
+import { setTableId } from "../../store/tableSessionSlice";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { CustomSegment, useAllergenMap } from "../../utils";
@@ -29,6 +30,7 @@ import { ItemEditDialog, type EditableItem } from "./ItemEditDialog";
 import { AddProductDialog } from "./AddProductDialog";
 import { ManageCategoriesDialog } from "./ManageCategoriesDialog";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
 type ItemTranslations = { title?: string; description?: string };
 
@@ -84,8 +86,17 @@ export const Menu = () => {
         () => queryParams.get("table") || queryParams.get("t") || queryParams.get("masa"),
         [queryParams]
     );
-    const qrKey   = useMemo(() => queryParams.get("k"), [queryParams]);
+    const qrKey = useMemo(() => queryParams.get("k"), [queryParams]);
     const tableId = tableIdFromPath || tableIdFromQuery;
+
+    const storedTableId = useAppSelector((s) => s.tableSession.tableId);
+    const effectiveTableId = tableId || storedTableId;
+
+    useEffect(() => {
+        if (tableId) {
+            dispatch(setTableId(tableId));
+        }
+    }, [tableId, dispatch]);
 
     const { status: proximityStatus } = useProximityCheck();
 
@@ -104,8 +115,8 @@ export const Menu = () => {
     const [editItem, setEditItem]             = useState<EditableItem | null>(null);
 
     const [addDialogOpen, setAddDialogOpen]       = useState(false);
-    const [addSegKey /*setAddSegKey*/]               = useState<string>("");
-    const [addCategoryLabel, /*setAddCategoryLabel*/] = useState("");
+    const [addSegKey, setAddSegKey]               = useState<string>("");
+    const [addCategoryLabel, setAddCategoryLabel] = useState("");
 
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deleteTarget, setDeleteTarget]         = useState<{ segKey: string; itemKey: string; title: string; image?: string } | null>(null);
@@ -121,7 +132,6 @@ export const Menu = () => {
         [cartItems]
     );
 
-    // menu node'unu tek seferde dinle — tüm kategoriler buradan gelir
     useEffect(() => {
         const unsub = onValue(
             ref(db, "menu"),
@@ -142,7 +152,6 @@ export const Menu = () => {
         return () => unsub();
     }, []);
 
-    // menuCategories: label ve sıra bilgisi
     useEffect(() => {
         const unsub = onValue(ref(db, "menuCategoryTranslations"), (snap) => {
             setCatMeta(snap.exists() ? snap.val() : {});
@@ -150,7 +159,6 @@ export const Menu = () => {
         return () => unsub();
     }, []);
 
-    // Kategoriler: menu node'undaki key'ler, catMeta'dan sıralanmış
     const categories = useMemo(() => {
         const keys = Object.keys(allData);
         return keys
@@ -165,7 +173,6 @@ export const Menu = () => {
             .sort((a, b) => a.order - b.order);
     }, [allData, catMeta, lang]);
 
-    // activeSeg: categories degisince gecersiz kalirsa ilk kategoriye don
     useEffect(() => {
         if (categories.length === 0) return;
         if (!activeSeg || !categories.find((c) => c.key === activeSeg)) {
@@ -179,7 +186,6 @@ export const Menu = () => {
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
-    // IntersectionObserver
     useEffect(() => {
         if (!menuLoaded || categories.length === 0) return;
         const observers = categories.map(({ key }) => {
@@ -278,22 +284,22 @@ export const Menu = () => {
 
     const handleCloseEditDialog = useCallback(() => { setEditDialogOpen(false); setEditItem(null); }, []);
 
-    //  const handleOpenAddDialog = useCallback((segKey: string, label: string) => {
-    //      setAddSegKey(segKey);
-    //      setAddCategoryLabel(label);
-    //      setAddDialogOpen(true);
-    //  }, []);
+    const handleOpenAddDialog = useCallback((segKey: string, label: string) => {
+        setAddSegKey(segKey);
+        setAddCategoryLabel(label);
+        setAddDialogOpen(true);
+    }, []);
 
     const handleCloseAddDialog = useCallback(() => setAddDialogOpen(false), []);
-
-    //  const handleOpenDeleteDialog = useCallback((segKey: string, itemKey: string, title: string, image?: string) => {
-    //    setDeleteTarget({ segKey, itemKey, title, image });
-    //    setDeleteDialogOpen(true);
-    //}, []);
 
     const handleCloseDeleteDialog = useCallback(() => {
         if (!deleteBusy) { setDeleteDialogOpen(false); setDeleteTarget(null); }
     }, [deleteBusy]);
+
+    const handleOpenDeleteDialog = useCallback((segKey: string, itemKey: string, title: string, image?: string) => {
+        setDeleteTarget({ segKey, itemKey, title, image });
+        setDeleteDialogOpen(true);
+    }, []);
 
     const handleConfirmDelete = useCallback(async () => {
         if (!deleteTarget) return;
@@ -306,7 +312,7 @@ export const Menu = () => {
                     const imageRef = storageRef(storage, deleteTarget.image);
                     await deleteObject(imageRef);
                 } catch {
-                    console.log("ERROR in deleteTarget.image")
+                    console.log("ERROR in deleteTarget.image");
                 }
             }
             dispatch(showNotify({ message: `"${deleteTarget.title}" silindi.`, severity: "success" }));
@@ -333,8 +339,7 @@ export const Menu = () => {
                 }}
             >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    {/*
-                     {user?.isAdmin && (
+                    {user?.isAdmin && (
                         <Box
                             onClick={() => setManageCatsOpen(true)}
                             sx={{
@@ -345,10 +350,9 @@ export const Menu = () => {
                                 "&:hover": { transform: "scale(1.12)", boxShadow: "0 6px 18px rgba(76,175,80,0.5)" },
                             }}
                         >
-                        <Typography sx={{ color: "white", fontWeight: 900, fontSize: 20, lineHeight: 1 }}>+</Typography>
+                            <Typography sx={{ color: "white", fontWeight: 900, fontSize: 20, lineHeight: 1 }}>+</Typography>
                         </Box>
                     )}
-                    */}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                         {categories.length > 0 && activeSeg && (
                             <CustomSegment value={activeSeg} onChange={handleSegmentClick} items={categories} />
@@ -366,14 +370,13 @@ export const Menu = () => {
                         Sipariş verebilmek için konum iznine ihtiyaç var. Lütfen tarayıcı ayarlarından konum iznini verin.
                     </Alert>
                 )}
-                {!user?.isAdmin && proximityStatus === "denied" && (
+                {!user?.isAdmin && proximityStatus === "denied" && effectiveTableId !== "t1003" && !!effectiveTableId && (
                     <Alert severity="error" sx={{ mb: 2 }}>
                         Sipariş verebilmek için QR kodu okuttuğunuz masada olmanız gerekmektedir!
                     </Alert>
                 )}
                 {error && <Alert severity="error">Hata: {error}</Alert>}
 
-                {/* Yükleniyor */}
                 {!menuLoaded && (
                     <Box sx={{ mt: 2, display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))", xl: "repeat(4, minmax(0, 1fr))" } }}>
                         {Array.from({ length: 8 }).map((_, i) => (
@@ -387,12 +390,10 @@ export const Menu = () => {
                     </Box>
                 )}
 
-                {/* Kategori yok */}
                 {menuLoaded && categories.length === 0 && (
                     <Alert severity="info" sx={{ mt: 2 }}>Henüz kategori yok.</Alert>
                 )}
 
-                {/* Kategoriler */}
                 {menuLoaded && categories.map(({ key, label }) => {
                     const list = getSortedList(key);
                     return (
@@ -405,7 +406,7 @@ export const Menu = () => {
                                 <Typography variant="h6" sx={{ fontWeight: 900, fontSize: { xs: 18, md: 20 } }}>
                                     {label}
                                 </Typography>
-                                {/* {user?.isAdmin && (
+                                {user?.isAdmin && (
                                     <Box
                                         onClick={() => handleOpenAddDialog(key, label)}
                                         sx={{
@@ -419,7 +420,6 @@ export const Menu = () => {
                                         <Typography sx={{ color: "white", fontWeight: 900, fontSize: 20, lineHeight: 1 }}>+</Typography>
                                     </Box>
                                 )}
-                              */}
                             </Box>
 
                             {list.length === 0 && <Alert severity="info">{m.noItems}</Alert>}
@@ -465,16 +465,10 @@ export const Menu = () => {
                                                         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", px: 1.2, py: 0.6, borderRadius: 999, bgcolor: "rgba(17,24,39,0.80)", color: "white", backdropFilter: "blur(10px)", whiteSpace: "nowrap" }}>
                                                             {item.salePrice ? (
                                                                 <>
-                                                                    <Typography
-                                                                        component="span"
-                                                                        sx={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)", textDecoration: "line-through", lineHeight: 1.2 }}
-                                                                    >
+                                                                    <Typography component="span" sx={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)", textDecoration: "line-through", lineHeight: 1.2 }}>
                                                                         {formatPriceTRY(item.price)}
                                                                     </Typography>
-                                                                    <Typography
-                                                                        component="span"
-                                                                        sx={{ fontSize: 15, fontWeight: 900, color: "#FF7A00", lineHeight: 1.2 }}
-                                                                    >
+                                                                    <Typography component="span" sx={{ fontSize: 15, fontWeight: 900, color: "#FF7A00", lineHeight: 1.2 }}>
                                                                         {formatPriceTRY(item.salePrice)}
                                                                     </Typography>
                                                                 </>
@@ -492,11 +486,10 @@ export const Menu = () => {
                                                                 <IconButton size="small" onClick={() => handleOpenEditDialog(key, { key: item.key, title: item.title, price: item.price, image: item.image, ingredients: item.ingredients, allergens: item.allergens, translations: item.translations })} sx={{ color: "#FF7A00" }}>
                                                                     <EditIcon fontSize="small" />
                                                                 </IconButton>
-                                                                {/*
+
                                                                 <IconButton size="small" onClick={() => handleOpenDeleteDialog(key, item.key, item.title, item.image)} sx={{ color: "error.main" }}>
                                                                     <DeleteOutlineIcon fontSize="small" />
                                                                 </IconButton>
-                                                                */}
                                                             </Box>
                                                             <PremiumSwitch
                                                                 size="small"
@@ -531,7 +524,12 @@ export const Menu = () => {
 
                                                         <Button
                                                             fullWidth size="small" variant="contained" disableElevation
-                                                            disabled={!item.isAvailable || isExpired || !isOrder}
+                                                            disabled={
+                                                                !item.isAvailable ||
+                                                                isExpired ||
+                                                                !isOrder ||
+                                                                (!user?.isAdmin && proximityStatus !== "allowed" && effectiveTableId !== "t1003")
+                                                            }
                                                             onClick={() => {
                                                                 dispatch(addItem({ productId: String(item.id), title: item.title, unitPrice: item.price, image: item.image ?? "", optionsCatalog: item.optionsCatalog ?? undefined }));
                                                                 dispatch(showNotify({ message: m.addedToCart(localTitle), severity: "success" }));

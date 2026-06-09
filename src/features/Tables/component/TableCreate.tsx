@@ -156,9 +156,6 @@ export const TableCreate = () => {
                         <Typography sx={{ fontSize: 12, color: "#FF7A00", fontFamily: "monospace" }}>
                             tables/t{newTableNumber} → name: "Masa {newTableNumber}", number: {newTableNumber}
                         </Typography>
-                        <Typography sx={{ fontSize: 12, color: "#FF7A00", fontFamily: "monospace", mt: 0.5 }}>
-                            tableSecrets/t{newTableNumber} → qrKey: "t{newTableNumber}_k_..."
-                        </Typography>
                     </Box>
                 )}
 
