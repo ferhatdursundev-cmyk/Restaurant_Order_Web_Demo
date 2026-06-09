@@ -27,8 +27,6 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { useAppDispatch, show as showNotify } from "../store";
 import {useAuth} from "../auth/aut.context.tsx";
 
-// ── Tipler ───────────────────────────────────────────────────────────────────
-
 type CallType = "garson" | "hesap" | "";
 
 type WaiterCall = {
@@ -39,8 +37,8 @@ type WaiterCall = {
 };
 
 type Props = {
-    tableId:    string;   // ör: "t3"
-    tableName?: string;   // ör: "Masa 3"
+    tableId:    string;
+    tableName?: string;
 };
 
 const NOTIFY_MESSAGES: Record<Exclude<CallType, "">, string> = {
@@ -80,7 +78,6 @@ export const CallWaiterDialog = ({ tableId, tableName }: Props) => {
                     tableId: tid,
                     ...v,
                 }));
-                // En yeni çağrı üstte
                 list.sort((a, b) => b.requestedAt - a.requestedAt);
                 setCalls(list);
             }
@@ -126,6 +123,15 @@ export const CallWaiterDialog = ({ tableId, tableName }: Props) => {
         }
     };
 
+    // Admin: tüm çağrıları sil
+    const handleDismissAll = async () => {
+        try {
+            await remove(ref(db, "waiterCalls"));
+        } catch (err) {
+            console.error("handleDismissAll error:", err);
+        }
+    };
+
     return (
         <>
             <Tooltip title={isAdmin ? "Garson Çağrıları" : "Garson Çağır"}>
@@ -152,8 +158,18 @@ export const CallWaiterDialog = ({ tableId, tableName }: Props) => {
             {/* ── ADMIN: çağrı listesi dialogu ── */}
             {isAdmin && (
                 <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-                    <DialogTitle sx={{ fontWeight: 900 }}>
+                    <DialogTitle sx={{ fontWeight: 900, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         Garson Çağrıları
+                        {calls.length > 0 && (
+                            <Button
+                                size="small"
+                                color="error"
+                                onClick={handleDismissAll}
+                                sx={{ fontWeight: 700 }}
+                            >
+                                Tümünü Sil
+                            </Button>
+                        )}
                     </DialogTitle>
 
                     <DialogContent dividers>

@@ -43,6 +43,7 @@ export const Header = ({ title }: Props) => {
     const { status: proximityStatus } = useProximityCheck();
     const isProximityOk =  proximityStatus === "allowed" || user?.userType === "admin";
     console.log("isProximityOk", isProximityOk)
+    console.log("user?.userType", user?.userType)
 
     const [userData, setUserData]           = useState<User | null>(auth.currentUser);
     const [anchorEl, setAnchorEl]           = useState<null | HTMLElement>(null);
@@ -190,6 +191,11 @@ export const Header = ({ title }: Props) => {
 
                                     { isProximityOk &&   <CallWaiterDialog tableId={activeTableId ?? ""} tableName={`Masa ${activeTableId}`} /> }
                                 </>
+                            )}
+
+                            {/* ─── Admin için her zaman göster ─── */}
+                            {user?.userType === "admin" && !activeTableId && (
+                                <CallWaiterDialog tableId="" tableName="" />
                             )}
                         </Box>
 
