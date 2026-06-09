@@ -92,7 +92,6 @@ export const ProductFormFields = ({ state, handlers, disabled }: Props) => {
                 inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
             />
 
-
             <TextField
                 label="İndirimli Fiyat (TL) — opsiyonel"
                 value={state.salePrice}
