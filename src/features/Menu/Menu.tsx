@@ -24,13 +24,15 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { CustomSegment, useAllergenMap } from "../../utils";
 import { useProximityCheck, useTableSession } from "../../hooks";
 import EditIcon from "@mui/icons-material/Edit";
-//import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { useLanguage, getLocalizedField } from "../../i18n";
 import { ItemEditDialog, type EditableItem } from "./ItemEditDialog";
 import { AddProductDialog } from "./AddProductDialog";
 import { ManageCategoriesDialog } from "./ManageCategoriesDialog";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+
+const GOOGLE_REVIEW_URL =
+    "https://www.google.com/maps/place/Sercan+Ateş+Fırını+Yalı/@41.6359561,32.3307967,17z/data=!4m8!3m7!1s0x409b73a300662795:0x33fbc3424e69493c!8m2!3d41.6359521!4d32.333377!9m1!1b1!16s%2Fg%2F11vzqp6yq0?hl=tr&entry=ttu&g_ep=EgoyMDI2MDYwMy4xIKXMDSoASAFQAw%3D%3D";
 
 type ItemTranslations = { title?: string; description?: string };
 
@@ -65,6 +67,15 @@ function formatPriceTRY(value: number) {
         maximumFractionDigits: 0,
     }).format(value)} ₺`;
 }
+
+const GoogleColorIcon = () => (
+    <svg viewBox="0 0 24 24" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+);
 
 export const Menu = () => {
     const { lang, t } = useLanguage();
@@ -486,7 +497,6 @@ export const Menu = () => {
                                                                 <IconButton size="small" onClick={() => handleOpenEditDialog(key, { key: item.key, title: item.title, price: item.price, image: item.image, ingredients: item.ingredients, allergens: item.allergens, translations: item.translations })} sx={{ color: "#FF7A00" }}>
                                                                     <EditIcon fontSize="small" />
                                                                 </IconButton>
-
                                                                 <IconButton size="small" onClick={() => handleOpenDeleteDialog(key, item.key, item.title, item.image)} sx={{ color: "error.main" }}>
                                                                     <DeleteOutlineIcon fontSize="small" />
                                                                 </IconButton>
@@ -577,11 +587,48 @@ export const Menu = () => {
                 </Box>
             )}
 
+            {/* Scroll to top — sağ alt */}
             {showScrollTop && (
-                <IconButton onClick={handleScrollTop} sx={{ position: "fixed", bottom: 80, right: 20, zIndex: 2100, bgcolor: "rgba(255,122,0,0.88)", backdropFilter: "blur(12px)", color: "white", border: "1px solid rgba(255,255,255,0.15)", boxShadow: "0 8px 24px rgba(0,0,0,0.3)", "&:hover": { bgcolor: "rgba(255,122,0,1)" } }}>
+                <IconButton
+                    onClick={handleScrollTop}
+                    sx={{
+                        position: "fixed", bottom: 80, right: 20, zIndex: 2100,
+                        bgcolor: "rgba(255,122,0,0.88)", backdropFilter: "blur(12px)",
+                        color: "white", border: "1px solid rgba(255,255,255,0.15)",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+                        "&:hover": { bgcolor: "rgba(255,122,0,1)" },
+                    }}
+                >
                     <KeyboardArrowUpIcon />
                 </IconButton>
             )}
+
+            {/* Google Yorum butonu sol alt */}
+            <IconButton
+                component="a"
+                href={GOOGLE_REVIEW_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{
+                    position: "fixed",
+                    bottom: 80,
+                    left: 20,
+                    zIndex: 2100,
+                    width: 44,
+                    height: 44,
+                    bgcolor: "white",
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+                    transition: "transform 150ms ease, box-shadow 150ms ease",
+                    "&:hover": {
+                        bgcolor: "#f1f3f4",
+                        transform: "scale(1.08)",
+                        boxShadow: "0 12px 32px rgba(0,0,0,0.22)",
+                    },
+                }}
+            >
+                <GoogleColorIcon />
+            </IconButton>
 
             <ConfirmDialog open={deleteDialogOpen} title="Ürünü Sil" description={deleteTarget ? `"${deleteTarget.title}" ürününü silmek istediginizden emin misiniz? Bu islem geri alinamaz.` : ""} confirmText={deleteBusy ? "Siliniyor..." : "Evet, Sil"} cancelText="Vazgeç" busy={deleteBusy} onClose={handleCloseDeleteDialog} onConfirm={handleConfirmDelete} />
             <ManageCategoriesDialog open={manageCatsOpen} onClose={() => setManageCatsOpen(false)} onSaved={() => {}} />
